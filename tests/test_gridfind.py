@@ -1,20 +1,10 @@
-from tmp_pipeline.config import load_config
+from helpers import CFG, grid
 from tmp_pipeline.layers.gridfind import detect_tables
 from tmp_pipeline.layers.reader import read_layers
-
-CFG = load_config()
 
 
 def tables(pdf):
     return detect_tables(read_layers(pdf)[0], CFG)
-
-
-def grid(c, x, y, cols, rows, cw=60, rh=20):
-    c.setLineWidth(0.5)
-    for i in range(rows + 1):
-        c.line(x, y + i * rh, x + cols * cw, y + i * rh)
-    for j in range(cols + 1):
-        c.line(x + j * cw, y, x + j * cw, y + rows * rh)
 
 
 def test_ruled_grid_is_one_table_with_outer_bbox(make_pdf):
@@ -57,3 +47,11 @@ def test_nested_badge_inside_a_grid_is_absorbed(make_pdf):
         grid(c, 112, 140, 2, 2, cw=10, rh=6)           # tiny grid wholly inside a cell
     ts = tables(make_pdf("n.pdf", [page]))
     assert len(ts) == 1
+
+
+def test_rule_pieces_at_a_rounding_boundary_still_join_into_one_rule():
+    from tmp_pipeline.layers.gridfind import _merge_rules
+    # 438.75 / 1.5 is 292.5 and 438.45 / 1.5 is 292.3: a position-rounding key puts them in different clusters
+    segs = [[50.0, 438.55, 113.22, 438.95], [113.62, 438.55, 202.65, 438.95], [202.7, 438.35, 300.0, 438.55]]
+    h, v = _merge_rules(segs, CFG)
+    assert len(h) == 1 and h[0][1] == 50.0 and h[0][2] == 300.0 and v == []

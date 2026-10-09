@@ -1,9 +1,7 @@
-from tmp_pipeline.config import load_config
+from helpers import CFG, grid
 from tmp_pipeline.layers.reader import read_layers
 from tmp_pipeline.layers.to_elements import build_elements
 from tmp_pipeline.zones import assign_zones
-
-CFG = load_config()
 
 
 def zones_of(pdf):
@@ -16,14 +14,6 @@ def header_footer(c, w, h, form="1. TMP Planning Form", page=1):
     c.setFont("Helvetica", 8)
     c.drawString(60, h - 30, "TMP Reference KTS 26-1581")
     c.drawString(60, 25, f"New Zealand Guide to Temporary Traffic Management {form} Page {page}")
-
-
-def grid(c, x, y, cols, rows, cw=60, rh=20):
-    c.setLineWidth(0.5)
-    for i in range(rows + 1):
-        c.line(x, y + i * rh, x + cols * cw, y + i * rh)
-    for j in range(cols + 1):
-        c.line(x + j * cw, y, x + j * cw, y + rows * rh)
 
 
 def body_text(c):
@@ -44,7 +34,7 @@ def test_form_page_takes_zone_from_footer_form_name(make_pdf):
         header_footer(c, w, h)
         body_text(c)
     s = zones_of(make_pdf("f.pdf", [page]))
-    assert s.pages[1]["zone"] == "forms"
+    assert s.pages[1].zone == "forms"
     assert {e.zone for e in s.of_type("text_block")} == {"forms"}
 
 
@@ -52,7 +42,7 @@ def test_job_pack_footer_gives_narrative(make_pdf):
     def page(c, w, h):
         header_footer(c, w, h, form="2. TMP Job Pack Form")
         body_text(c)
-    assert zones_of(make_pdf("n.pdf", [page])).pages[1]["zone"] == "narrative"
+    assert zones_of(make_pdf("n.pdf", [page])).pages[1].zone == "narrative"
 
 
 def test_page_with_form_block_and_rating_grid_gets_two_zones(make_pdf):
@@ -64,7 +54,7 @@ def test_page_with_form_block_and_rating_grid_gets_two_zones(make_pdf):
         rating_grid(c, 100, 100)                # small rating-colour table below
         c.drawString(105, 140, "Likely")
     s = zones_of(make_pdf("two.pdf", [page]))
-    assert s.pages[1]["zone"] == "forms"
+    assert s.pages[1].zone == "forms"
     zones = {e.representations["text"]: e.zone for e in s.of_type("text_block") if e.metadata["band"] == "body"}
     assert zones["Vulnerable road users"] == "forms" and zones["Likely"] == "risk"
     (region,) = s.of_type("region")
@@ -76,20 +66,20 @@ def test_page_mostly_rating_table_is_risk(make_pdf):
         header_footer(c, w, h)
         rating_grid(c, 100, 100)
         body_text(c)
-    assert zones_of(make_pdf("r.pdf", [page])).pages[1]["zone"] == "risk"
+    assert zones_of(make_pdf("r.pdf", [page])).pages[1].zone == "risk"
 
 
 def test_header_and_footer_only_page_is_blank(make_pdf):
     def page(c, w, h):
         header_footer(c, w, h, form="2. TMP Job Pack Form", page=17)
-    assert zones_of(make_pdf("b.pdf", [page])).pages[1]["zone"] == "blank"
+    assert zones_of(make_pdf("b.pdf", [page])).pages[1].zone == "blank"
 
 
 def test_no_header_band_with_template_code_is_generic_standard(make_pdf):
     def page(c, w, h):
         c.setFont("Helvetica", 10)
         c.drawString(72, 450, "FH.M1 where work cannot occur near a pedestrian crossing")
-    assert zones_of(make_pdf("g.pdf", [page])).pages[1]["zone"] == "generic_standard"
+    assert zones_of(make_pdf("g.pdf", [page])).pages[1].zone == "generic_standard"
 
 
 def test_no_signal_at_all_stays_unclassified(make_pdf):
@@ -97,7 +87,7 @@ def test_no_signal_at_all_stays_unclassified(make_pdf):
         c.setFont("Helvetica", 10)
         c.drawString(72, 450, "Some text with no recognisable cue at all here")
     s = zones_of(make_pdf("u.pdf", [page]))
-    assert s.pages[1]["zone"] == "unclassified" and s.pages[1]["zone_reason"]
+    assert s.pages[1].zone == "unclassified" and s.pages[1].zone_reason
 
 
 def test_big_image_with_overlay_paths_and_no_header_is_diagram(make_pdf):
@@ -113,6 +103,6 @@ def test_big_image_with_overlay_paths_and_no_header_is_diagram(make_pdf):
         c.setFont("Helvetica", 8)
         c.drawString(60, 30, "SHEET NO: 01")
     s = zones_of(make_pdf("d.pdf", [page]))
-    assert s.pages[1]["zone"] == "diagram"
+    assert s.pages[1].zone == "diagram"
     (sheet,) = s.of_type("diagram_sheet")
     assert sheet.zone == "diagram" and {e.zone for e in s.elements.values()} == {"diagram"}

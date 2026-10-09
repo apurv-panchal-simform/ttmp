@@ -1,0 +1,118 @@
+# Schema catalog (plan section 3.1), minimal Phase 2 version: only the entities and sections the Phase 2
+# handlers read. Code uses synonyms and units; prompts use descriptions. Adding a field or synonym means
+# editing this file, never a prompt. Field types: text, integer, number, percent, date, time, rp, speed,
+# distance, duration, bool. A field with `critical: true` is judged (X6) before it can be `verified`.
+version: "0.1.0"
+
+entities:
+  road:
+    description: "A road affected by the works, one row per road"
+    match_key: [road_name, suburb]
+    fields:
+      road_name:        {type: text,    desc: "Name of the road", synonyms: ["road name(s)", "road name", "road", "street"]}
+      suburb:           {type: text,    desc: "Suburb or sub-region the road is in", synonyms: ["sub-region / suburb", "suburb", "sub-region"]}
+      start_rp:         {type: rp,      unit: km, desc: "Start route position", critical: true, synonyms: ["start rp / house #", "start rp", "from rp"]}
+      end_rp:           {type: rp,      unit: km, desc: "End route position", critical: true, synonyms: ["end rp / house #", "end rp", "to rp"]}
+      onrc_class:       {type: text,    desc: "One Network Road Classification", synonyms: ["road classification (onrc)", "road classification", "onrc"]}
+      posted_speed_kmh: {type: integer, unit: km/h, desc: "Permanent posted speed limit", critical: true, synonyms: ["posted speed", "speed limit"]}
+      aadt:             {type: integer, desc: "Annual average daily traffic", synonyms: ["aadt"]}
+      hmv_pct:          {type: percent, unit: "%", desc: "Share of heavy motor vehicles", synonyms: ["%hmv", "hmv", "% hmv"]}
+      peak_periods:     {type: text,    desc: "Peak traffic periods as stated", synonyms: ["peak traffic periods"]}
+
+  work_period:
+    description: "Operating hours and dates of the work or stage"
+    fields:
+      start_date:   {type: date,     desc: "Work or stage start date", synonyms: ["work/stage start date", "ttm start date", "start date"]}
+      start_time:   {type: time,     desc: "Start time", critical: true, synonyms: ["start time", "ttm start time"]}
+      duration:     {type: duration, desc: "Work or stage duration", synonyms: ["work/stage duration", "duration"]}
+      end_date:     {type: date,     desc: "Work or stage end date", synonyms: ["work/stage end date", "ttm end date", "end date"]}
+      finish_time:  {type: time,     desc: "Finish time", critical: true, synonyms: ["finish time", "ttm end time", "end time"]}
+      working_days: {type: text,     desc: "Proposed working days as stated", synonyms: ["proposed working days"]}
+
+  shift_window:
+    description: "Times for one day type: when crews sign in, controls go in, pick-up starts and the site is cleared"
+    match_key: [day_type]
+    fields:
+      first_sign_in: {type: time, desc: "First sign in", critical: true, synonyms: ["first sign in"]}
+      tc_in:         {type: time, desc: "Traffic control in", critical: true, synonyms: ["traffic control in"]}
+      pick_up:       {type: time, desc: "Commence pick up", critical: true, synonyms: ["commence pick up"]}
+      site_cleared:  {type: time, desc: "Site cleared", critical: true, synonyms: ["site cleared"]}
+
+  road_geometry:
+    description: "Measured road characteristics"
+    fields:
+      road_width_m:      {type: distance, unit: m, desc: "Road width", synonyms: ["road width"]}
+      number_of_lanes:   {type: integer, desc: "Number of lanes", synonyms: ["number of lanes"]}
+      shoulder_sealed_m: {type: distance, unit: m, desc: "Sealed shoulder width", synonyms: ["shoulder width (sealed)"]}
+      shoulder_unsealed_m: {type: distance, unit: m, desc: "Unsealed shoulder width", synonyms: ["shoulder width (unsealed)"]}
+
+  vulnerable_user:
+    description: "Road users and site features ticked on the planning form"
+    fields:
+      pedestrians:        {type: bool, desc: "Pedestrians present", synonyms: ["pedestrians"]}
+      school_childcare:   {type: bool, desc: "School or childcare nearby", synonyms: ["school &/or childcare", "school and/or childcare"]}
+      cyclists:           {type: bool, desc: "Cyclists present", synonyms: ["cyclists"]}
+      aged_care_mobility: {type: bool, desc: "Aged care or mobility users", synonyms: ["aged care/mobility"]}
+      bus_route:          {type: bool, desc: "Bus route", synonyms: ["bus route"]}
+      other:              {type: bool, desc: "Other, with free text", synonyms: ["other"]}
+
+  road_aspect:
+    description: "Other road aspects ticked on the planning form"
+    fields:
+      controlled_parking:        {type: bool, desc: "Controlled parking", synonyms: ["controlled parking"]}
+      traffic_signals:           {type: bool, desc: "Traffic signals", synonyms: ["traffic signals"]}
+      uncontrolled_intersections: {type: bool, desc: "Uncontrolled intersections", synonyms: ["uncontrolled intersections"]}
+      public_transport:          {type: bool, desc: "Public transport", synonyms: ["public transport"]}
+      rail_corridor:             {type: bool, desc: "Rail corridor", synonyms: ["rail corridor"]}
+
+  risk:
+    description: "One hazard row of the risk register"
+    fields:
+      category:             {type: text,    desc: "Risk category", synonyms: ["risk category"]}
+      hazard:               {type: text,    desc: "Hazard or trigger", synonyms: ["hazard / trigger", "hazard"]}
+      groups_at_risk:       {type: text,    desc: "Groups at risk", synonyms: ["groups at risk"]}
+      potential_event:      {type: text,    desc: "Potential event", synonyms: ["potential event"]}
+      initial_likelihood:   {type: text,    desc: "Likelihood before controls", synonyms: ["initial likelihood"]}
+      initial_consequence:  {type: text,    desc: "Consequence before controls", synonyms: ["initial consequence"]}
+      initial_risk:         {type: text,    desc: "Risk rating before controls", critical: true, synonyms: ["initial risk"]}
+      controls:             {type: text,    desc: "Control measures", synonyms: ["control measures", "controls"]}
+      residual_likelihood:  {type: text,    desc: "Likelihood after controls", synonyms: ["residual likelihood"]}
+      residual_consequence: {type: text,    desc: "Consequence after controls", synonyms: ["residual consequence"]}
+      residual_risk:        {type: text,    desc: "Risk rating after controls", critical: true, synonyms: ["residual risk"]}
+      affected_tmds:        {type: text,    desc: "Diagram sheets the risk applies to", synonyms: ["affected tmd", "affected tmds"]}
+
+sections:
+  contingency.bad_weather:     {heading_synonyms: ["bad weather"], fields: []}
+  contingency.property_access: {heading_synonyms: ["property access"], fields: []}
+  contingency.traffic_surges:
+    heading_synonyms: ["public or event-related traffic surges", "traffic surges"]
+    fields:
+      delay_trigger_minutes: {type: duration, unit: min, critical: true, desc: "Delay in minutes that triggers action", pattern: {kind: duration, unit: min}}
+      delay_trigger_queue_m: {type: distance, unit: m, critical: true, desc: "Queue length in metres that triggers action", pattern: {kind: distance, unit: m}}
+      delay_action:          {type: text, desc: "What the STMS does when the trigger is reached"}
+  contingency.emergency_services: {heading_synonyms: ["emergency services or on-site emergency", "emergency services"], fields: []}
+  contingency.spills:
+    heading_synonyms: ["spills", "spill response"]
+    fields:
+      spill_hotline: {type: text, desc: "Phone number to call for a spill", pattern: {kind: phone}}
+      first_action:  {type: text, desc: "First action the STMS takes in a spill"}
+  contingency.work_running_late: {heading_synonyms: ["work running late"], fields: []}
+  contingency.accident:        {heading_synonyms: ["accident", "accident:"], fields: []}
+  contingency.delay_validation: {heading_synonyms: ["delay calculation / validation"], fields: []}
+  contingency:                 {heading_synonyms: ["contingency controls"], fields: []}
+  monitoring:
+    heading_synonyms: ["on-site monitoring and assurance", "attended", "unattended"]
+    fields:
+      inspection_interval_h: {type: duration, unit: h, critical: true, desc: "Hours between site inspections", pattern: {kind: duration, unit: h}}
+  staging:                     {heading_synonyms: ["overall ttm staging", "ttm stages", "ttm staging"], fields: []}
+  notification:                {heading_synonyms: ["public notification"], fields: []}
+  design_review:               {heading_synonyms: ["design review"], fields: []}
+  tmd_installation:            {heading_synonyms: ["installation, maintenance and removal tmds", "traffic management diagrams (tmds)"], fields: []}
+  temporary_speed_limits:      {heading_synonyms: ["proposed temporary speed limits (tsl)"], fields: []}
+  equipment_authorisation:     {heading_synonyms: ["traffic management equipment requiring authorisation", "road safety hardware"], fields: []}
+  activity_context:            {heading_synonyms: ["activity context", "establish the activity and environment context"], fields: []}
+  work_summary:                {heading_synonyms: ["summary – work activity description and work", "summary - work activity description and work"], fields: []}
+  location:                    {heading_synonyms: ["worksite location", "location details and road characteristics"], fields: []}
+  planning_record:             {heading_synonyms: ["ttm planning meeting record", "ttm forms framework"], fields: []}
+
+required_signoffs: [ttm_designer, design_checker, activity_manager, rca_primary]

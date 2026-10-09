@@ -9,11 +9,11 @@ from __future__ import annotations
 import json
 import os
 import time
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 from .. import logging_ as lg
+from ..transport import ServiceError, Transport, raise_for_status, urllib_transport, with_retry
 from .cache import CacheMiss, DiCache, cache_key
 
 API_VERSION = "2024-11-30"
@@ -28,7 +28,7 @@ class DiConfig:
     key: str | None = None            # None -> bearer token from azure-identity, if installed
 
     @classmethod
-    def from_env(cls) -> "DiConfig":
+    def from_env(cls) -> DiConfig:
         endpoint = os.environ.get("AZURE_DI_ENDPOINT")
         if not endpoint:
             raise RuntimeError("AZURE_DI_ENDPOINT is not set")
@@ -45,17 +45,8 @@ class DiConfig:
         return {"Authorization": f"Bearer {token}"}
 
 
-Transport = "callable(method, url, headers, body) -> (status, response_headers, body_bytes)"
-
-
-def _urllib_transport(method: str, url: str, headers: dict, body: bytes | None):
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=120) as r:      # noqa: S310 (https endpoint from config)
-        return r.status, dict(r.headers), r.read()
-
-
 def analyze(pdf_path: str | Path, file_sha256: str, cache: DiCache, config: DiConfig | None = None, *,
-            pages: str | None = None, cache_only: bool = False, transport=None, poll_s: float = 2.0,
+            pages: str | None = None, cache_only: bool = False, transport: Transport | None = None, poll_s: float = 2.0,
             max_polls: int = 150) -> dict:
     """Return the analyzeResult dict for the PDF, from cache when possible."""
     key = cache_key(file_sha256, MODEL, API_VERSION, FEATURES + OUTPUT, pages)
@@ -67,19 +58,21 @@ def analyze(pdf_path: str | Path, file_sha256: str, cache: DiCache, config: DiCo
         lg.log_event("di", "cache_miss", cache_key=key, cache_only=True)
         raise CacheMiss(key)
     config = config or DiConfig.from_env()
-    transport = transport or _urllib_transport
+    transport = transport or with_retry(urllib_transport)
     body = Path(pdf_path).read_bytes()
     url = (f"{config.endpoint}/documentintelligence/documentModels/{MODEL}:analyze?api-version={API_VERSION}"
            f"&features={','.join(FEATURES)}&output={','.join(OUTPUT)}" + (f"&pages={pages}" if pages else ""))
     lg.log_event("di", "request", url=url.split("?")[0], features=FEATURES, output=OUTPUT, pages=pages or "all",
                  file_bytes=len(body))
     t0 = time.time()
-    status, headers, _ = transport("POST", url, {**config.headers(), "Content-Type": "application/pdf"}, body)
+    status, headers, resp = transport("POST", url, {**config.headers(), "Content-Type": "application/pdf"}, body)
+    raise_for_status(status, "DI analyze request", resp)
     op = {k.lower(): v for k, v in headers.items()}.get("operation-location")
-    if status not in (200, 202) or not op:
-        raise RuntimeError(f"DI analyze request failed: HTTP {status}")
+    if not op:
+        raise ServiceError("DI analyze request returned no operation-location header", status)
     for _ in range(max_polls):
         status, _, raw = transport("GET", op, config.headers(), None)
+        raise_for_status(status, "DI poll", raw)
         doc = json.loads(raw)
         if doc.get("status") == "succeeded":
             result = doc["analyzeResult"]
@@ -91,6 +84,6 @@ def analyze(pdf_path: str | Path, file_sha256: str, cache: DiCache, config: DiCo
                          figures=len(result.get("figures", [])), tables=len(result.get("tables", [])))
             return result
         if doc.get("status") == "failed":
-            raise RuntimeError(f"DI analysis failed: {doc.get('error')}")
+            raise ServiceError(f"DI analysis failed: {doc.get('error')}")
         time.sleep(poll_s)
-    raise TimeoutError("DI analysis did not finish in time")
+    raise ServiceError("DI analysis did not finish in time")

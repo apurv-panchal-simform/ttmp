@@ -10,11 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pypdf
+import pypdf.errors
 
 from . import logging_ as lg
+from .config import IntakeCfg, load_config
+from .errors import CorruptPdfError, EmptyPdfError, EncryptedPdfError
 
-MIN_TEXT_CHARS = 20          # fewer characters than this = no usable text layer on the page
-SCANNED_SHARE = 0.5          # scanned=true when more than this share of pages has no text layer
 _FILENAME_VERSION = re.compile(r"(?<![A-Za-z0-9])V(\d+)(?![A-Za-z0-9])")
 _TITLE_VERSION = re.compile(r"\b(?:Version\s*:?\s*)?V(\d+)\b|\bVersion\s*:?\s*(\d+)\b")
 DONE_MARKER = ".done"
@@ -50,14 +51,35 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def intake(pdf_path: str | Path, out_root: str | Path) -> IntakeResult:
+def compute_doc_id(pdf_path: str | Path) -> str:
+    """The content hash that names a document everywhere (sha256:<hex>)."""
+    return "sha256:" + _sha256(Path(pdf_path))
+
+
+def open_pdf(path: Path) -> pypdf.PdfReader:
+    """Open a PDF for intake, turning library failures into typed errors."""
+    try:
+        reader = pypdf.PdfReader(str(path))
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise EncryptedPdfError(f"{path.name}: the PDF is password protected")
+        if len(reader.pages) == 0:
+            raise EmptyPdfError(f"{path.name}: the PDF has no pages")
+    except (pypdf.errors.PyPdfError, ValueError, OSError, KeyError, TypeError, AttributeError) as e:
+        if isinstance(e, FileNotFoundError):
+            raise
+        raise CorruptPdfError(f"{path.name}: not a readable PDF ({type(e).__name__}: {e})") from e
+    return reader
+
+
+def intake(pdf_path: str | Path, out_root: str | Path, cfg: IntakeCfg | None = None) -> IntakeResult:
+    cfg = cfg or load_config().intake
     path = Path(pdf_path)
-    doc_id = "sha256:" + _sha256(path)
+    doc_id = compute_doc_id(path)
     lg.set_doc_id(doc_id)
-    reader = pypdf.PdfReader(str(path))
+    reader = open_pdf(path)
     texts = [(p.extract_text() or "") for p in reader.pages]
-    without = [i for i, t in enumerate(texts, 1) if len(t.strip()) < MIN_TEXT_CHARS]
-    scanned = bool(texts) and len(without) / len(texts) > SCANNED_SHARE
+    without = [i for i, t in enumerate(texts, 1) if len(t.strip()) < cfg.min_text_chars]
+    scanned = bool(texts) and len(without) / len(texts) > cfg.scanned_share
 
     m = _FILENAME_VERSION.search(path.name)
     version = f"V{m.group(1)}" if m else None

@@ -1,11 +1,9 @@
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-from tmp_pipeline.config import load_config
+from helpers import CFG
 from tmp_pipeline.layers.reader import read_layers
 from tmp_pipeline.layers.ticks import detect_ticks
-
-CFG = load_config()
 
 
 def ticks(pdf):
@@ -38,8 +36,9 @@ def test_table_cells_are_not_mistaken_for_boxes(make_pdf):
 
 
 def test_text_glyphs_are_read_when_the_font_has_them(make_pdf):
-    import pytest
     from pathlib import Path
+
+    import pytest
     font = next((p for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",) if Path(p).exists()), None)
     if font is None:
         pytest.skip("no TTF font with ballot-box glyphs")

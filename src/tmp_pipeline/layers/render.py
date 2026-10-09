@@ -8,9 +8,9 @@ import numpy as np
 import pypdfium2 as pdfium
 from PIL import Image
 
-from ..models import bbox_pt_to_px
+from ..constants import MASTER_DPI
+from ..geometry import bbox_pt_to_px
 
-MASTER_DPI = 200
 CROP_DPI = 300
 
 
@@ -18,7 +18,7 @@ class Renderer:
     def __init__(self, pdf_path: str | Path):
         self._doc = pdfium.PdfDocument(str(pdf_path))
 
-    def __enter__(self) -> "Renderer":
+    def __enter__(self) -> Renderer:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -52,7 +52,7 @@ class Renderer:
 
 def perceptual_hash(img: Image.Image) -> str:
     """64-bit pHash (32x32 grey DCT, top-left 8x8 against the median) as 16 hex characters."""
-    grey = np.asarray(img.convert("L").resize((32, 32), Image.LANCZOS), dtype=np.float32)
+    grey = np.asarray(img.convert("L").resize((32, 32), Image.Resampling.LANCZOS), dtype=np.float32)
     low = cv2.dct(grey)[:8, :8].flatten()
     bits = low > np.median(low[1:])
     value = 0

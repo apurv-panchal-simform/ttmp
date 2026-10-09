@@ -1,0 +1,1294 @@
+{
+ "document": "TMP V1 (DOM-354922) - 55 Sunrise Avenue, Murrays Bay",
+ "status": "DRAFT: read from the PDF render and text layer by the extractor's author; needs an independent second keying (plan 7.1)",
+ "mode": "model off (no X2/X4/X5/X6 calls): critical facts that nothing judged are expected unverified",
+ "notes": [
+  "Matrix and register ratings are what the printed matrix shows. Cell (likelihood 4, impact 4) = 16 prints orange (High); the plan text says red.",
+  "rating_mismatch rows are those whose stated rating differs from the matrix cell at (likelihood, impact)."
+ ],
+ "expected": [
+  {
+   "id": "road:p4:Sunrise Avenue",
+   "kind": "road",
+   "page": 4,
+   "match": {
+    "road_name": "Sunrise Avenue"
+   },
+   "fields": {
+    "suburb": "Murrays Bay",
+    "start_rp": 0.41,
+    "end_rp": 0.68,
+    "onrc_class": "Primary Collector",
+    "posted_speed_kmh": 50,
+    "aadt": 9260,
+    "hmv_pct": 3.0,
+    "peak_periods": "An AADT of 1158 vph typically occurs during the time periods"
+   },
+   "flags": [
+    "merged"
+   ]
+  },
+  {
+   "id": "road:p4:Gull Lane",
+   "kind": "road",
+   "page": 4,
+   "match": {
+    "road_name": "Gull Lane"
+   },
+   "fields": {
+    "suburb": "Mairangi Bay",
+    "start_rp": 0.0,
+    "end_rp": 0.03,
+    "onrc_class": "Low Volume",
+    "posted_speed_kmh": 50,
+    "aadt": 37,
+    "hmv_pct": 5.409
+   },
+   "flags": [
+    "merged"
+   ]
+  },
+  {
+   "id": "road:p18:Sunrise Avenue",
+   "kind": "road",
+   "page": 18,
+   "match": {
+    "road_name": "Sunrise Avenue"
+   },
+   "fields": {
+    "suburb": "Murrays Bay",
+    "start_rp": 0.41,
+    "end_rp": 0.68,
+    "posted_speed_kmh": 50
+   },
+   "flags": [
+    "merged"
+   ]
+  },
+  {
+   "id": "road:p18:Gull Lane",
+   "kind": "road",
+   "page": 18,
+   "match": {
+    "road_name": "Gull Lane"
+   },
+   "fields": {
+    "suburb": "Mairangi Bay",
+    "start_rp": 0.0,
+    "end_rp": 0.03,
+    "posted_speed_kmh": 50
+   },
+   "flags": [
+    "merged"
+   ]
+  },
+  {
+   "id": "work_period:p4:2026-09-28",
+   "kind": "work_period",
+   "page": 4,
+   "match": {
+    "start_date": "2026-09-28"
+   },
+   "fields": {
+    "start_date": "2026-09-28",
+    "duration": 4,
+    "end_date": "2026-10-28",
+    "working_days": "2 8 September 2026 - 28 October 2026",
+    "start_time": null,
+    "finish_time": null
+   },
+   "flags": [
+    "refers_elsewhere"
+   ]
+  },
+  {
+   "id": "shift_window:p3:School days",
+   "kind": "shift_window",
+   "page": 3,
+   "match": {
+    "day_type": "School days"
+   },
+   "fields": {
+    "first_sign_in": "09:00",
+    "tc_in": "09:30",
+    "pick_up": "14:30",
+    "site_cleared": "15:00"
+   }
+  },
+  {
+   "id": "shift_window:p3:School holidays",
+   "kind": "shift_window",
+   "page": 3,
+   "match": {
+    "day_type": "School holidays"
+   },
+   "fields": {
+    "first_sign_in": "08:00",
+    "tc_in": "08:30",
+    "pick_up": "16:30",
+    "site_cleared": "17:00"
+   }
+  },
+  {
+   "id": "shift_window:p3:Weekends",
+   "kind": "shift_window",
+   "page": 3,
+   "match": {
+    "day_type": "Weekends"
+   },
+   "fields": {
+    "first_sign_in": "07:00",
+    "tc_in": "07:30",
+    "pick_up": "17:30",
+    "site_cleared": "18:00"
+   }
+  },
+  {
+   "id": "shift_window:p11:School days",
+   "kind": "shift_window",
+   "page": 11,
+   "match": {
+    "day_type": "School days"
+   },
+   "fields": {
+    "first_sign_in": "09:00",
+    "tc_in": "09:30",
+    "pick_up": "14:30",
+    "site_cleared": "15:00"
+   }
+  },
+  {
+   "id": "shift_window:p11:School holidays",
+   "kind": "shift_window",
+   "page": 11,
+   "match": {
+    "day_type": "School holidays"
+   },
+   "fields": {
+    "first_sign_in": "08:00",
+    "tc_in": "08:30",
+    "pick_up": "16:30",
+    "site_cleared": "17:00"
+   }
+  },
+  {
+   "id": "shift_window:p11:Weekends",
+   "kind": "shift_window",
+   "page": 11,
+   "match": {
+    "day_type": "Weekends"
+   },
+   "fields": {
+    "first_sign_in": "07:00",
+    "tc_in": "07:30",
+    "pick_up": "17:30",
+    "site_cleared": "18:00"
+   }
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "pedestrians": true
+   },
+   "fields": {
+    "pedestrians": true
+   },
+   "entity": "vulnerable_user"
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "school_childcare": true
+   },
+   "fields": {
+    "school_childcare": true
+   },
+   "entity": "vulnerable_user"
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "cyclists": true
+   },
+   "fields": {
+    "cyclists": true
+   },
+   "entity": "vulnerable_user"
+  },
+  {
+   "id": "checkbox:p5:False",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "aged_care_mobility": false
+   },
+   "fields": {
+    "aged_care_mobility": false
+   },
+   "entity": "vulnerable_user"
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "bus_route": true
+   },
+   "fields": {
+    "bus_route": true
+   },
+   "entity": "vulnerable_user"
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "other": true
+   },
+   "fields": {
+    "other": true
+   },
+   "entity": "vulnerable_user"
+  },
+  {
+   "id": "checkbox:p5:False",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "controlled_parking": false
+   },
+   "fields": {
+    "controlled_parking": false
+   },
+   "entity": "road_aspect"
+  },
+  {
+   "id": "checkbox:p5:False",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "traffic_signals": false
+   },
+   "fields": {
+    "traffic_signals": false
+   },
+   "entity": "road_aspect"
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "uncontrolled_intersections": true
+   },
+   "fields": {
+    "uncontrolled_intersections": true
+   },
+   "entity": "road_aspect"
+  },
+  {
+   "id": "checkbox:p5:True",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "public_transport": true
+   },
+   "fields": {
+    "public_transport": true
+   },
+   "entity": "road_aspect"
+  },
+  {
+   "id": "checkbox:p5:False",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "rail_corridor": false
+   },
+   "fields": {
+    "rail_corridor": false
+   },
+   "entity": "road_aspect"
+  },
+  {
+   "id": "checkbox:p5:Property access can be affected",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "other_note": "Property access can be affected"
+   },
+   "fields": {
+    "other_note": "Property access can be affected"
+   }
+  },
+  {
+   "id": "checkbox:p5:Not present onsite",
+   "kind": "checkbox",
+   "page": 5,
+   "match": {
+    "aged_care_mobility_note": "Not present onsite"
+   },
+   "fields": {
+    "aged_care_mobility_note": "Not present onsite"
+   }
+  },
+  {
+   "id": "yes_no:p11:no",
+   "kind": "yes_no",
+   "page": 11,
+   "match": {
+    "does_detour_route_use_another_rca_s_network": "no"
+   },
+   "fields": {
+    "does_detour_route_use_another_rca_s_network": "no"
+   }
+  },
+  {
+   "id": "yes_no:p11:no",
+   "kind": "yes_no",
+   "page": 11,
+   "match": {
+    "if_yes_have_we_consulted_with_that_rca_and_confirmed_their_a": "no"
+   },
+   "fields": {
+    "if_yes_have_we_consulted_with_that_rca_and_confirmed_their_a": "no"
+   }
+  },
+  {
+   "id": "yes_no:p19:yes",
+   "kind": "yes_no",
+   "page": 19,
+   "match": {
+    "will_controlled_street_parking_be_affected": "yes"
+   },
+   "fields": {
+    "will_controlled_street_parking_be_affected": "yes"
+   }
+  },
+  {
+   "id": "yes_no:p19:yes",
+   "kind": "yes_no",
+   "page": 19,
+   "match": {
+    "will_bus_stop_s_be_obstructed_by_the_work": "yes"
+   },
+   "fields": {
+    "will_bus_stop_s_be_obstructed_by_the_work": "yes"
+   }
+  },
+  {
+   "id": "yes_no:p19:yes",
+   "kind": "yes_no",
+   "page": 19,
+   "match": {
+    "have_we_consulted_with_relevant_regional_transport_operator": "yes"
+   },
+   "fields": {
+    "have_we_consulted_with_relevant_regional_transport_operator": "yes"
+   }
+  },
+  {
+   "id": "yes_no:p19:no",
+   "kind": "yes_no",
+   "page": 19,
+   "match": {
+    "will_permanent_traffic_signals_be_affected": "no"
+   },
+   "fields": {
+    "will_permanent_traffic_signals_be_affected": "no"
+   }
+  },
+  {
+   "id": "yes_no:p19:no",
+   "kind": "yes_no",
+   "page": 19,
+   "match": {
+    "full_closure_of_the_carriageway_is_required": "no"
+   },
+   "fields": {
+    "full_closure_of_the_carriageway_is_required": "no"
+   }
+  },
+  {
+   "id": "yes_no:p19:no",
+   "kind": "yes_no",
+   "page": 19,
+   "match": {
+    "partial_closure_of_the_carriageway_is_required": "no"
+   },
+   "fields": {
+    "partial_closure_of_the_carriageway_is_required": "no"
+   }
+  },
+  {
+   "id": "risk_cell:p5:5/1",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 5,
+    "impact": 1
+   },
+   "fields": {
+    "likelihood": 5,
+    "impact": 1,
+    "score": 5,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p5:5/2",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 5,
+    "impact": 2
+   },
+   "fields": {
+    "likelihood": 5,
+    "impact": 2,
+    "score": 10,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:5/3",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 5,
+    "impact": 3
+   },
+   "fields": {
+    "likelihood": 5,
+    "impact": 3,
+    "score": 15,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:5/4",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 5,
+    "impact": 4
+   },
+   "fields": {
+    "likelihood": 5,
+    "impact": 4,
+    "score": 20,
+    "rating": "Very High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:5/5",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 5,
+    "impact": 5
+   },
+   "fields": {
+    "likelihood": 5,
+    "impact": 5,
+    "score": 25,
+    "rating": "Very High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:4/1",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 4,
+    "impact": 1
+   },
+   "fields": {
+    "likelihood": 4,
+    "impact": 1,
+    "score": 4,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p5:4/2",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 4,
+    "impact": 2
+   },
+   "fields": {
+    "likelihood": 4,
+    "impact": 2,
+    "score": 8,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p5:4/3",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 4,
+    "impact": 3
+   },
+   "fields": {
+    "likelihood": 4,
+    "impact": 3,
+    "score": 12,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:4/4",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 4,
+    "impact": 4
+   },
+   "fields": {
+    "likelihood": 4,
+    "impact": 4,
+    "score": 16,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:4/5",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 4,
+    "impact": 5
+   },
+   "fields": {
+    "likelihood": 4,
+    "impact": 5,
+    "score": 20,
+    "rating": "Very High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:3/1",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 3,
+    "impact": 1
+   },
+   "fields": {
+    "likelihood": 3,
+    "impact": 1,
+    "score": 3,
+    "rating": "Low"
+   }
+  },
+  {
+   "id": "risk_cell:p5:3/2",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 3,
+    "impact": 2
+   },
+   "fields": {
+    "likelihood": 3,
+    "impact": 2,
+    "score": 6,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p5:3/3",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 3,
+    "impact": 3
+   },
+   "fields": {
+    "likelihood": 3,
+    "impact": 3,
+    "score": 9,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p5:3/4",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 3,
+    "impact": 4
+   },
+   "fields": {
+    "likelihood": 3,
+    "impact": 4,
+    "score": 12,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p5:3/5",
+   "kind": "risk_cell",
+   "page": 5,
+   "match": {
+    "likelihood": 3,
+    "impact": 5
+   },
+   "fields": {
+    "likelihood": 3,
+    "impact": 5,
+    "score": 15,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p6:2/1",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 2,
+    "impact": 1
+   },
+   "fields": {
+    "likelihood": 2,
+    "impact": 1,
+    "score": 2,
+    "rating": "Insignificant"
+   }
+  },
+  {
+   "id": "risk_cell:p6:2/2",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 2,
+    "impact": 2
+   },
+   "fields": {
+    "likelihood": 2,
+    "impact": 2,
+    "score": 4,
+    "rating": "Low"
+   }
+  },
+  {
+   "id": "risk_cell:p6:2/3",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 2,
+    "impact": 3
+   },
+   "fields": {
+    "likelihood": 2,
+    "impact": 3,
+    "score": 6,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p6:2/4",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 2,
+    "impact": 4
+   },
+   "fields": {
+    "likelihood": 2,
+    "impact": 4,
+    "score": 8,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p6:2/5",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 2,
+    "impact": 5
+   },
+   "fields": {
+    "likelihood": 2,
+    "impact": 5,
+    "score": 10,
+    "rating": "High"
+   }
+  },
+  {
+   "id": "risk_cell:p6:1/1",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 1,
+    "impact": 1
+   },
+   "fields": {
+    "likelihood": 1,
+    "impact": 1,
+    "score": 1,
+    "rating": "Insignificant"
+   }
+  },
+  {
+   "id": "risk_cell:p6:1/2",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 1,
+    "impact": 2
+   },
+   "fields": {
+    "likelihood": 1,
+    "impact": 2,
+    "score": 2,
+    "rating": "Insignificant"
+   }
+  },
+  {
+   "id": "risk_cell:p6:1/3",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 1,
+    "impact": 3
+   },
+   "fields": {
+    "likelihood": 1,
+    "impact": 3,
+    "score": 3,
+    "rating": "Low"
+   }
+  },
+  {
+   "id": "risk_cell:p6:1/4",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 1,
+    "impact": 4
+   },
+   "fields": {
+    "likelihood": 1,
+    "impact": 4,
+    "score": 4,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_cell:p6:1/5",
+   "kind": "risk_cell",
+   "page": 6,
+   "match": {
+    "likelihood": 1,
+    "impact": 5
+   },
+   "fields": {
+    "likelihood": 1,
+    "impact": 5,
+    "score": 5,
+    "rating": "Medium"
+   }
+  },
+  {
+   "id": "risk_impact_key:p5:Very High",
+   "kind": "risk_impact_key",
+   "page": 5,
+   "match": {
+    "rating": "Very High"
+   },
+   "fields": {
+    "impact": 5,
+    "whs": "Fatality or permanent disability"
+   }
+  },
+  {
+   "id": "risk_impact_key:p5:High",
+   "kind": "risk_impact_key",
+   "page": 5,
+   "match": {
+    "rating": "High"
+   },
+   "fields": {
+    "impact": 4,
+    "whs": "Lost time injury or illness"
+   }
+  },
+  {
+   "id": "risk_impact_key:p5:Medium",
+   "kind": "risk_impact_key",
+   "page": 5,
+   "match": {
+    "rating": "Medium"
+   },
+   "fields": {
+    "impact": 3,
+    "whs": "Medical treatment injury"
+   }
+  },
+  {
+   "id": "risk_impact_key:p5:Low",
+   "kind": "risk_impact_key",
+   "page": 5,
+   "match": {
+    "rating": "Low"
+   },
+   "fields": {
+    "impact": 2,
+    "whs": "First Aid injury"
+   }
+  },
+  {
+   "id": "risk_impact_key:p5:Insignificant",
+   "kind": "risk_impact_key",
+   "page": 5,
+   "match": {
+    "rating": "Insignificant"
+   },
+   "fields": {
+    "impact": 1,
+    "whs": "No significant injury"
+   }
+  },
+  {
+   "id": "risk:p6:Work area",
+   "kind": "risk",
+   "page": 6,
+   "match": {
+    "category": "Work area"
+   },
+   "fields": {
+    "initial_likelihood": "Very Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   }
+  },
+  {
+   "id": "risk:p6:Stop Go",
+   "kind": "risk",
+   "page": 6,
+   "match": {
+    "category": "Stop Go"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-04"
+    ]
+   }
+  },
+  {
+   "id": "risk:p6:Lane Diversion",
+   "kind": "risk",
+   "page": 6,
+   "match": {
+    "category": "Lane Diversion"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-03"
+    ]
+   }
+  },
+  {
+   "id": "risk:p7:Shoulder Closure",
+   "kind": "risk",
+   "page": 7,
+   "match": {
+    "category": "Shoulder Closure"
+   },
+   "fields": {
+    "initial_likelihood": "Very Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02"
+    ]
+   }
+  },
+  {
+   "id": "risk:p7:Excavation",
+   "kind": "risk",
+   "page": 7,
+   "match": {
+    "category": "Excavation"
+   },
+   "fields": {
+    "initial_likelihood": "Very Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Very Unlikely",
+    "residual_consequence": "First aid injury",
+    "residual_risk": "Low",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p7:Pedestrians",
+   "kind": "risk",
+   "page": 7,
+   "match": {
+    "category": "Pedestrians"
+   },
+   "fields": {
+    "initial_likelihood": "Very Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   }
+  },
+  {
+   "id": "risk:p7:Driveways",
+   "kind": "risk",
+   "page": 7,
+   "match": {
+    "category": "Driveways"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Medical treatment injury",
+    "initial_risk": "High",
+    "residual_likelihood": "Very Unlikely",
+    "residual_consequence": "First aid injury",
+    "residual_risk": "Low",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p7:Plant / vehicles",
+   "kind": "risk",
+   "page": 7,
+   "match": {
+    "category": "Plant / vehicles"
+   },
+   "fields": {
+    "initial_likelihood": "Very Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   }
+  },
+  {
+   "id": "risk:p7:School",
+   "kind": "risk",
+   "page": 7,
+   "match": {
+    "category": "School"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Medical treatment injury",
+    "initial_risk": "High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "First aid injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p8:Public Transport",
+   "kind": "risk",
+   "page": 8,
+   "match": {
+    "category": "Public Transport"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Medical treatment injury",
+    "initial_risk": "High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "First aid injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p8:Temporary speed",
+   "kind": "risk",
+   "page": 8,
+   "match": {
+    "category": "Temporary speed"
+   },
+   "fields": {
+    "initial_likelihood": "Very Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-03",
+     "TMD-04"
+    ]
+   }
+  },
+  {
+   "id": "risk:p8:TTM installation",
+   "kind": "risk",
+   "page": 8,
+   "match": {
+    "category": "TTM installation"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Lost time injury",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-01",
+     "TMD-02",
+     "TMD-03",
+     "TMD-04",
+     "TMD-05"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p8:Unattended site",
+   "kind": "risk",
+   "page": 8,
+   "match": {
+    "category": "Unattended site"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Lost time injury",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-05"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p8:Weather",
+   "kind": "risk",
+   "page": 8,
+   "match": {
+    "category": "Weather"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Medical treatment injury",
+    "initial_risk": "High",
+    "residual_likelihood": "Very Unlikely",
+    "residual_consequence": "First aid injury",
+    "residual_risk": "Low",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   },
+   "flags": [
+    "rating_mismatch"
+   ]
+  },
+  {
+   "id": "risk:p9:Emergency access",
+   "kind": "risk",
+   "page": 9,
+   "match": {
+    "category": "Emergency access"
+   },
+   "fields": {
+    "initial_likelihood": "Likely",
+    "initial_consequence": "Fatality / permanent disability",
+    "initial_risk": "Very High",
+    "residual_likelihood": "Unlikely",
+    "residual_consequence": "Medical treatment injury",
+    "residual_risk": "Medium",
+    "affected_tmds": [
+     "TMD-02",
+     "TMD-03",
+     "TMD-04"
+    ]
+   }
+  },
+  {
+   "id": "section:p12:Bad Weather",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Bad Weather"
+   },
+   "fields": {},
+   "entity": "contingency.bad_weather"
+  },
+  {
+   "id": "section:p12:Property Access",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Property Access"
+   },
+   "fields": {},
+   "entity": "contingency.property_access"
+  },
+  {
+   "id": "section:p12:Emergency Services or On-site Emergency",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Emergency Services or On-site Emergency"
+   },
+   "fields": {},
+   "entity": "contingency.emergency_services"
+  },
+  {
+   "id": "section:p12:Work Running Late",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Work Running Late"
+   },
+   "fields": {},
+   "entity": "contingency.work_running_late"
+  },
+  {
+   "id": "section:p12:Accident:",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Accident:"
+   },
+   "fields": {},
+   "entity": "contingency.accident"
+  },
+  {
+   "id": "section:p12:Delay calculation / validation",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Delay calculation / validation"
+   },
+   "fields": {},
+   "entity": "contingency.delay_validation"
+  },
+  {
+   "id": "section:p12:Spills",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Spills"
+   },
+   "fields": {
+    "spill_hotline": "0800 USPILL"
+   },
+   "entity": "contingency.spills"
+  },
+  {
+   "id": "section:p12:Public or Event-related traffic surges",
+   "kind": "section",
+   "page": 12,
+   "match": {
+    "data.heading": "Public or Event-related traffic surges"
+   },
+   "fields": {
+    "delay_trigger_minutes": 5,
+    "delay_trigger_queue_m": 250
+   },
+   "entity": "contingency.traffic_surges",
+   "unverified": [
+    "delay_trigger_minutes",
+    "delay_trigger_queue_m"
+   ]
+  },
+  {
+   "id": "section:p16:Review: Road Controlling Authority – other network (if required)",
+   "kind": "section",
+   "page": 16,
+   "match": {
+    "data.heading": "Review: Road Controlling Authority – other network (if required)"
+   },
+   "fields": {},
+   "applicability": "not_applicable"
+  }
+ ]
+}

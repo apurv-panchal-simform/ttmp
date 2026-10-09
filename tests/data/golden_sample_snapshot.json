@@ -1,0 +1,78 @@
+{
+ "elements": 1236,
+ "zones": {
+  "1": "forms",
+  "2": "forms",
+  "3": "forms",
+  "4": "forms",
+  "5": "forms",
+  "6": "risk",
+  "7": "risk",
+  "8": "risk",
+  "9": "risk",
+  "10": "narrative",
+  "11": "narrative",
+  "12": "narrative",
+  "13": "narrative",
+  "14": "narrative",
+  "15": "narrative",
+  "16": "narrative",
+  "17": "blank",
+  "18": "forms",
+  "19": "forms",
+  "20": "diagram",
+  "21": "diagram",
+  "22": "diagram",
+  "23": "diagram",
+  "24": "diagram",
+  "25": "generic_standard"
+ },
+ "types": {
+  "checkbox": 30,
+  "diagram_sheet": 5,
+  "image": 49,
+  "page_furniture": 132,
+  "region": 1,
+  "table": 53,
+  "text_block": 966
+ },
+ "routes": {
+  "CHECKBOX": 30,
+  "DECORATIVE": 28,
+  "DIAGRAM": 293,
+  "FIGURE": 2,
+  "METADATA": 132,
+  "RISK_TABLE": 271,
+  "STRUCTURE": 6,
+  "TABLE": 393,
+  "TEXT": 81
+ },
+ "outcomes": {
+  "claimed": 909,
+  "kept": 6,
+  "metadata": 132,
+  "sent": 161,
+  "skipped": 28
+ },
+ "flags": {
+  "decorative": 28,
+  "generic": 50,
+  "low_text_quality": 23,
+  "struck": 8
+ },
+ "records": {
+  "checkbox": 14,
+  "risk": 15,
+  "risk_cell": 25,
+  "risk_impact_key": 5,
+  "risk_matrix": 1,
+  "road": 4,
+  "road_geometry": 1,
+  "section": 33,
+  "shift_window": 6,
+  "table": 48,
+  "table_row": 26,
+  "work_period": 2,
+  "yes_no": 8
+ }
+}

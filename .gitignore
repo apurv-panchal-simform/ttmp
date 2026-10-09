@@ -4,3 +4,8 @@ out/
 __pycache__/
 .pytest_cache/
 *.pyc
+.serena/
+# client documents and the plan stay local
+*.pdf
+TMP Combined Plan.html
+tests/data/sample.pdf

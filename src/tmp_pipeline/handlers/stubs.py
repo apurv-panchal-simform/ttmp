@@ -1,29 +1,31 @@
-"""Phase 1 handler stubs: accept every element routed to them and keep a count per route.
-
-Each real handler in Phase 2 (TEXT, TABLE, RISK_TABLE, CHECKBOX) and Phase 3 (DIAGRAM, FIGURE) takes the
-same call shape, so replacing a stub is a one-line change in the registry.
-"""
+"""Handlers that only count what they receive. They stand in for routes whose real handler is not built yet
+(FIGURE and DIAGRAM until Phase 3) and let the router be tested without any handler logic."""
 from __future__ import annotations
 
 from collections import Counter
 
+from ..contracts import BaseHandler, HandlerContext, HandlerRegistry, HandlerResult
 from ..models import Element
+from ..vocab import Route
 
-ROUTES = ("TEXT", "TABLE", "RISK_TABLE", "CHECKBOX", "FIGURE", "DIAGRAM")
+STUB_ROUTES = (Route.TEXT, Route.TABLE, Route.RISK_TABLE, Route.CHECKBOX, Route.FIGURE, Route.DIAGRAM)
 
 
-class StubHandler:
-    def __init__(self, route: str):
-        self.route = route
+class StubHandler(BaseHandler):
+    version = "stub"
+
+    def __init__(self, route: Route | str):
+        self.route = Route(route)
         self.received: list[str] = []
 
-    def handle(self, element: Element) -> None:
+    def handle(self, ctx: HandlerContext, element: Element) -> HandlerResult:
         self.received.append(element.element_id)
+        return HandlerResult()
 
 
-def default_registry() -> dict[str, StubHandler]:
-    return {r: StubHandler(r) for r in ROUTES}
+def stub_registry(routes=STUB_ROUTES) -> HandlerRegistry:
+    return HandlerRegistry(StubHandler(r) for r in routes)
 
 
-def received_counts(registry: dict[str, StubHandler]) -> Counter:
-    return Counter({r: len(h.received) for r, h in registry.items()})
+def received_counts(registry: HandlerRegistry) -> Counter:
+    return Counter({str(h.route): len(h.received) for h in registry if isinstance(h, StubHandler)})

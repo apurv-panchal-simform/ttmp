@@ -7,7 +7,6 @@ from PIL import Image
 from reportlab.lib.utils import ImageReader
 
 from tmp_pipeline import logging_ as lg
-from tmp_pipeline.config import load_config
 from tmp_pipeline.di import run as di_run
 from tmp_pipeline.di.cache import CacheMiss, DiCache, cache_key
 from tmp_pipeline.di.client import DiConfig, analyze

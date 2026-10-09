@@ -1,37 +1,23 @@
 import json
 
+import pytest
 from PIL import Image
 from reportlab.lib.utils import ImageReader
 
-from tmp_pipeline.config import load_config
-from tmp_pipeline.furniture import apply_furniture
-from tmp_pipeline.layers.reader import read_layers
-from tmp_pipeline.layers.to_elements import build_elements
-from tmp_pipeline.router import route
-from tmp_pipeline.zones import assign_zones
-
-CFG = load_config()
-
-
-def prepare(pdf):
-    s = build_elements(read_layers(pdf), "sha256:t", CFG)
-    assign_zones(s, CFG)
-    apply_furniture(s, CFG)
-    return s
-
-
-def hf(c, w, h, n=1):
-    c.setFont("Helvetica", 8)
-    c.drawString(60, h - 30, "TMP Reference KTS 26-1581")
-    c.drawString(60, 25, f"New Zealand Guide to Temporary Traffic Management 1. TMP Planning Form Page {n}")
-
-
-def grid(c, x, y, cols, rows, cw=60, rh=20):
-    c.setLineWidth(0.5)
-    for i in range(rows + 1):
-        c.line(x, y + i * rh, x + cols * cw, y + i * rh)
-    for j in range(cols + 1):
-        c.line(x + j * cw, y, x + j * cw, y + rows * rh)
+from helpers import CFG, grid, prepare
+from helpers import header_footer as hf
+from tmp_pipeline.contracts import (
+    BaseHandler,
+    ElementUpdate,
+    HandlerRegistry,
+    HandlerResult,
+    MissingHandlerError,
+)
+from tmp_pipeline.handlers.stubs import stub_registry
+from tmp_pipeline.models import ElementStore, PageInfo
+from tmp_pipeline.records import Evidence, Record, RecordStore, Stamp
+from tmp_pipeline.router import decide, route
+from tmp_pipeline.vocab import Flag, Route
 
 
 def test_every_element_has_exactly_one_outcome_and_one_log_line(make_pdf, tmp_path):
@@ -101,7 +87,7 @@ def test_large_figure_is_informative_and_unclear_one_needs_x1(make_pdf):
         c.drawImage(ImageReader(mid), 600, 300, width=170, height=130)       # ~ 4.4% -> unclear
     s = prepare(make_pdf("f.pdf", [one]))
     res = route(s, CFG)
-    got = {round((im.bbox_pt[2] - im.bbox_pt[0])): res.decisions[im.element_id] for im in s.of_type("image")}
+    got = {round(im.bbox_pt[2] - im.bbox_pt[0]): res.decisions[im.element_id] for im in s.of_type("image")}
     assert got[400].triage == "informative" and got[400].route == "FIGURE" and got[400].outcome == "sent"
     assert got[120].triage == "decorative"
     assert got[170].triage == "needs_x1" and got[170].route == "FIGURE"       # unclear: treated as informative
@@ -145,4 +131,114 @@ def test_route_and_triage_are_stored_on_the_elements_for_later_stages(make_pdf):
     s = prepare(make_pdf("m.pdf", [page, page, page]))
     route(s, CFG)
     (tb,) = [e for e in s.of_type("text_block", page=1)]
-    assert tb.metadata["route"] == "TEXT" and tb.metadata["router_outcome"] == "sent"
+    assert tb.route == "TEXT" and tb.outcome == "sent"
+
+
+# --- contract: isolation, purity, registry, ownership -------------------------------------------------------------
+
+class _Boom(BaseHandler):
+    route = Route.TEXT
+    version = "t"
+
+    def handle(self, ctx, element):
+        raise RuntimeError("boom")
+
+
+class _Counting(BaseHandler):
+    version = "t"
+
+    def __init__(self, route):
+        self.route, self.seen, self.began, self.finished = Route(route), [], False, False
+
+    def begin(self, ctx):
+        self.began = True
+
+    def handle(self, ctx, element):
+        self.seen.append(element.element_id)
+        return HandlerResult(
+            records=[Record("note", element.page, Stamp(str(self.route), "t"), evidence=[Evidence.of(element)])],
+            element_updates={element.element_id: ElementUpdate(add_flags=(Flag.UNVERIFIED,), metadata={"seen": 1})})
+
+    def finish(self, ctx):
+        self.finished = True
+        return HandlerResult()
+
+
+def _form_page(make_pdf, name="x.pdf"):
+    def page(c, w, h):
+        hf(c, w, h)
+        c.setFont("Helvetica", 10)
+        c.drawString(72, 450, "Free paragraph of text on the form page")
+        grid(c, 100, 200, 3, 3)
+    return prepare(make_pdf(name, [page, page, page]))
+
+
+def _registry(text_handler):
+    reg = stub_registry()
+    reg.replace(text_handler)
+    return reg
+
+
+def test_handler_failure_is_isolated_logged_and_does_not_lose_the_log(make_pdf, tmp_path):
+    s = _form_page(make_pdf)
+    log = tmp_path / "router.log"
+    res = route(s, CFG, log, _registry(_Boom()))
+    texts = [e for e in s.elements.values() if e.route == "TEXT"]
+    assert texts and all(e.outcome == "failed" for e in texts)
+    assert len(res.failures) == len(texts) and "RuntimeError: boom" in res.failures[0]["error"]
+    lines = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+    assert len(lines) == len(s.elements)                                    # every element still has its line
+    assert {x["outcome"] for x in lines if x["error"]} == {"failed"}
+    assert res.coverage(s)["coverage"] == 1.0 and res.coverage(s)["failed"] == len(texts)
+
+
+def test_handler_results_become_records_flags_and_metadata(make_pdf):
+    s = _form_page(make_pdf)
+    h, records = _Counting("TEXT"), RecordStore(s.doc_id)
+    route(s, CFG, registry=_registry(h), records=records)
+    assert h.began and h.finished and h.seen
+    assert len(records) == len(h.seen) and all(records.records_for(i) for i in h.seen)
+    e = s.elements[h.seen[0]]
+    assert Flag.UNVERIFIED in e.flags and e.metadata["seen"] == 1
+
+
+def test_missing_handler_fails_before_anything_runs(make_pdf):
+    s = _form_page(make_pdf)
+    reg = HandlerRegistry([_Counting("TEXT")])                              # no TABLE handler
+    with pytest.raises(MissingHandlerError, match="TABLE"):
+        route(s, CFG, registry=reg)
+    assert all(e.outcome is None for e in s.elements.values())               # nothing was applied or run
+
+
+def test_unused_routes_need_no_handler(make_pdf):
+    def page(c, w, h):
+        hf(c, w, h)
+        c.setFont("Helvetica", 10)
+        c.drawString(72, 450, "Only text here")
+    s = prepare(make_pdf("t.pdf", [page, page, page]))
+    route(s, CFG, registry=HandlerRegistry([_Counting("TEXT")]))
+
+
+def test_decide_does_not_touch_the_store(make_pdf):
+    s = _form_page(make_pdf)
+    before = [(e.element_id, e.flags[:], e.parent_id, e.route, e.outcome) for e in s.elements.values()]
+    d1, d2 = decide(s, CFG), decide(s, CFG)
+    assert d1 == d2 and len(d1) == len(s.elements)
+    assert before == [(e.element_id, e.flags[:], e.parent_id, e.route, e.outcome) for e in s.elements.values()]
+
+
+def test_registry_rejects_duplicate_route_and_unknown_route():
+    reg = HandlerRegistry([_Counting("TEXT")])
+    with pytest.raises(ValueError, match="already"):
+        reg.register(_Counting("TEXT"))
+    with pytest.raises(MissingHandlerError):
+        reg.get("TABLE")
+
+
+def test_checkbox_on_a_diagram_sheet_belongs_to_the_sheet_not_the_checkbox_handler(make_pdf):
+    s = ElementStore("d")
+    sheet = s.add(1, (842, 595), "diagram", "diagram_sheet", [0, 0, 842, 595])
+    cb = s.add(1, (842, 595), "diagram", "checkbox", [10, 10, 20, 20], metadata={"state": "ticked"})
+    s.pages[1] = PageInfo(width_pt=842, height_pt=595)
+    d = decide(s, CFG)
+    assert d[cb.element_id].route == "DIAGRAM" and d[cb.element_id].claimed_by == sheet.element_id

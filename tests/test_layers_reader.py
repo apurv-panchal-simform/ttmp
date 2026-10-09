@@ -80,4 +80,4 @@ def test_sample_pdf_pages_and_sizes(sample_pdf):
     assert layers[16].width < layers[16].height          # page 17 is portrait
     p20 = layers[19]
     nested = [o for o in p20.objects if o.kind == "image" and o.level == 1]
-    assert nested and all(-1 <= o.bbox_pt[0] and o.bbox_pt[2] <= p20.width + 1 for o in nested)
+    assert nested and all(o.bbox_pt[0] >= -1 and o.bbox_pt[2] <= p20.width + 1 for o in nested)

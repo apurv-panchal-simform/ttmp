@@ -1,8 +1,6 @@
-from tmp_pipeline.config import load_config
+from helpers import CFG
 from tmp_pipeline.layers.reader import read_layers
 from tmp_pipeline.layers.textblocks import build_text_blocks
-
-CFG = load_config()
 
 
 def blocks(pdf, tables=()):

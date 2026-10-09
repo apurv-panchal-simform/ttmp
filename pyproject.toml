@@ -13,7 +13,15 @@ dependencies = [
     "pillow>=12.3.0",
     "pypdf>=6.19.0",
     "pypdfium2>=5.14.0",
+    "pyyaml>=6.0.3",
 ]
+
+[project.optional-dependencies]
+azure = ["azure-identity>=1.19"]
+
+[project.scripts]
+tmp-pipeline = "tmp_pipeline.run:main"
+tmp-pipeline-di = "tmp_pipeline.di.run:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]
@@ -23,4 +31,29 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
     "reportlab>=5.0.1",
+    "ruff>=0.9",
+    "mypy>=1.14",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "sample: needs tests/data/sample.pdf (fails instead of skipping when TMP_REQUIRE_SAMPLE=1)",
+    "live: calls a live Azure service; skipped without credentials",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# style-only rules: long lines and single-letter names are tolerated; the rest stay enforced
+ignore = ["E501", "E741", "B905", "SIM102", "SIM110", "B008"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true

@@ -4,14 +4,28 @@
 [page]
 header_band_pt = 62          # text above this distance from the top edge is header band
 footer_band_pt = 55          # text within this distance of the bottom edge is footer band
+background_share = 0.8       # a filled rect covering more than this share of the page is background, not a cell
+
+[intake]
+min_text_chars = 20          # fewer characters than this on a page = no usable text layer
+scanned_share = 0.5          # scanned = more than this share of pages has no text layer
 
 [text]
 word_gap_em = 0.25           # gap wider than this x font size starts a new word
 segment_gap_em = 2.5         # gap wider than this x font size splits a line into segments
 segment_gap_min_pt = 15
 line_join_em = 0.6           # vertical gap (x font size) up to which segments form one block
+line_base_em = 1.2           # fixed part of the allowed line-to-line gap (x font size); line_join_em is added
+line_group_em = 0.6          # glyphs whose baselines differ by less than this x font size share a line
+block_break_em = 2.5         # a vertical jump larger than this x font size ends a block
+column_overlap = 0.5         # share of the narrower segment two lines must overlap to be one column
 left_align_tol_pt = 4
 row_tol_pt = 3               # blocks whose tops are within this are read left to right
+heading_min_delta = 2         # a bold line this many pt above body size is a level 1 heading; a bold line within it is level 2
+strike_band_low = 0.25       # a strikethrough rule sits between these fractions of the line height...
+strike_band_high = 0.75
+strike_min_cover = 0.6       # ...and covers at least this share of the line's width
+strike_max_overhang_pt = 4   # a longer rule than the text by more than this is a border, not a strikethrough
 
 [quality]
 low_threshold = 0.6          # share of dictionary words below which a text block is flagged
@@ -25,15 +39,35 @@ join_tol_pt = 1.0
 edge_tol_pt = 1.5
 min_parts = 4
 min_cells = 2
+header_fills = [[0.835, 0.961, 1.0], [0.0, 0.31, 0.41]]   # fill colours that mark a header row (a template cue)
+header_fill_tol = 0.03
+rule_cover = 0.8             # a ruling segment closes a cell edge when it covers this share of the edge
+stitch_x_tol_pt = 6          # column positions of a continued table match within this
 
 [ticks]
 ticked = ["☒", "☑", "✓", "✔", "✗", "✘"]
 unticked = ["☐"]
 square_min_pt = 6
 square_max_pt = 16
+contain_pad_pt = 0.5         # slack when testing that a mark lies inside a box
+square_aspect_tol_pt = 1.2   # a vector square's width and height may differ by this much
+
+[checkboxes]
+row_tol_pt = 2               # vertical slack when deciding that a label shares a row with a box
+label_gap_pt = 40            # the label of a label-then-box pair ends no further than this left of the box
+note_gap_pt = 18             # free text counts as the box's note when it starts within this right of the box
+yes_labels = ["yes"]
+no_labels = ["no"]
+
+[risk]
+colour_tol = 0.35            # a cell colour is a key colour when its RGB distance is at most this
+column_tol_pt = 40           # a score cell belongs to the impact column whose label is this close (x centre)
+row_tol_pt = 8               # ...and to the likelihood row whose label centre is this close (y)
+description_match = 0.6      # minimum text similarity to treat a register consequence as a key description
 
 [furniture]
 min_page_share = 0.5         # repeated on more than this share of pages = page furniture
+min_line_share = 0.5         # a block is furniture when at least this share of its lines repeats
 form_name_regex = '(\d)\.\s*TMP\s+(.+?)\s+Form'
 tmp_ref_regex = '[A-Z]{2,5}\s?\d{2}-\d{4}'
 page_number_regex = 'Page\s+(\d+)'
@@ -59,3 +93,4 @@ decorative_max_area = 0.03   # smaller than this share of the page and no text i
 informative_min_area = 0.05  # larger than this share = informative; in between = unclear (needs_x1)
 repeat_iou = 0.9             # same spot on most pages (IoU above this) = decorative
 repeat_min_pages = 3         # a figure cannot "repeat" in a document shorter than this
+repeat_page_share = 0.5      # a figure repeats when it sits in the same spot on more than this share of pages

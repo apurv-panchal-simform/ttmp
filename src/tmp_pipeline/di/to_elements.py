@@ -5,17 +5,12 @@ and a check can find it again. Words inside a DI figure become children of that 
 """
 from __future__ import annotations
 
+from ..geometry import centre_in, rounded_px_box
 from ..logging_ import log_event
-from ..models import ElementStore, bbox_pt_to_px
+from ..models import ElementStore, PageInfo
 from .geometry import check_page_geometry, polygon_to_bbox_pt
 
 SOURCE = "azure-di prebuilt-layout 2024-11-30"
-MASTER_DPI = 200
-
-
-def _centre_in(b, outer) -> bool:
-    cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
-    return outer[0] <= cx <= outer[2] and outer[1] <= cy <= outer[3]
 
 
 def di_to_elements(result: dict, core: ElementStore, regions: dict[int, list[list[float]]] | None = None) -> ElementStore:
@@ -34,30 +29,30 @@ def di_to_elements(result: dict, core: ElementStore, regions: dict[int, list[lis
         if info is None:
             log_event("di", "page_skipped", page=n, reason="page not in the core store")
             continue
-        w, h = info["width_pt"], info["height_pt"]
+        w, h = info.width_pt, info.height_pt
         problems = check_page_geometry(di_page, w, h)
         if problems:
             log_event("di", "geometry_rejected", page=n, problems=problems)
             continue
-        zone = info.get("zone", "unclassified")
+        zone = info.zone
         fig_ids: list[tuple[str, list[float]]] = []
         for fig, br in figures_by_page.get(n, []):
             box = polygon_to_bbox_pt(br["polygon"], h)
-            el = store.add(n, (w, h), zone, "figure", box, bbox_px=[round(v, 1) for v in bbox_pt_to_px(box, h, MASTER_DPI)],
+            el = store.add(n, (w, h), zone, "figure", box, bbox_px=rounded_px_box(box, h),
                            source=SOURCE, metadata={"di_figure_id": fig.get("id")})
             fig_ids.append((el.element_id, box))
         kept = 0
         for i, word in enumerate(di_page.get("words", [])):
             box = polygon_to_bbox_pt(word["polygon"], h)
-            parent = next((fid for fid, fb in fig_ids if _centre_in(box, fb)), None)
-            if regions is not None and parent is None and not any(_centre_in(box, r) for r in regions.get(n, [])):
+            parent = next((fid for fid, fb in fig_ids if centre_in(box, fb)), None)
+            if regions is not None and parent is None and not any(centre_in(box, r) for r in regions.get(n, [])):
                 continue
             store.add(n, (w, h), zone, "ocr_word", box, element_id=f"p{n}:ocr_word:{i}", parent_id=parent,
-                      bbox_px=[round(v, 1) for v in bbox_pt_to_px(box, h, MASTER_DPI)], source=SOURCE,
+                      bbox_px=rounded_px_box(box, h), source=SOURCE,
                       representations={"text": word["content"]},
                       metadata={"di_index": i, "confidence": word.get("confidence")})
             kept += 1
-        store.pages[n] = {"width_pt": w, "height_pt": h, "zone": zone, "di_words": len(di_page.get("words", [])),
-                          "di_words_kept": kept, "di_figures": len(fig_ids)}
+        store.pages[n] = PageInfo(width_pt=w, height_pt=h, zone=zone, di_words=len(di_page.get("words", [])),
+                                  di_words_kept=kept, di_figures=len(fig_ids))
         log_event("di", "page_elements", page=n, figures=len(fig_ids), words=kept)
     return store

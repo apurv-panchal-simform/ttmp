@@ -1,9 +1,7 @@
-from tmp_pipeline.config import load_config
+from helpers import CFG
 from tmp_pipeline.layers.reader import read_layers
 from tmp_pipeline.layers.to_elements import build_elements
 from tmp_pipeline.models import ElementStore
-
-CFG = load_config()
 
 
 def build(pdf):
@@ -57,4 +55,4 @@ def test_store_round_trips_with_page_info(make_pdf, tmp_path):
     s = build(make_pdf("t.pdf", [page]))
     s.dump(tmp_path / "e.json")
     t = ElementStore.load(tmp_path / "e.json")
-    assert t.pages[1]["n_chars"] == s.pages[1]["n_chars"] and list(t.elements) == list(s.elements)
+    assert t.pages[1].n_chars == s.pages[1].n_chars and list(t.elements) == list(s.elements)

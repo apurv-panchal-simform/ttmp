@@ -1,10 +1,8 @@
-from tmp_pipeline.config import load_config
+from helpers import CFG
 from tmp_pipeline.furniture import apply_furniture
 from tmp_pipeline.layers.reader import read_layers
 from tmp_pipeline.layers.to_elements import build_elements
 from tmp_pipeline.zones import assign_zones
-
-CFG = load_config()
 
 
 def run(pdf):
@@ -27,8 +25,8 @@ def page_with(n, form="1. TMP Planning Form", ref="KTS 26-1581", body="Body para
 def test_repeated_header_and_footer_are_furniture_and_promoted_to_metadata(make_pdf):
     s = run(make_pdf("f.pdf", [page_with(1), page_with(2), page_with(3)]))
     assert s.metadata["tmp_reference"] == "KTS 26-1581"
-    assert [s.pages[p]["printed_page"] for p in (1, 2, 3)] == [1, 2, 3]
-    assert s.pages[1]["form_name"] == "1. TMP Planning Form"
+    assert [s.pages[p].printed_page for p in (1, 2, 3)] == [1, 2, 3]
+    assert s.pages[1].form_name == "1. TMP Planning Form"
     furniture = s.of_type("page_furniture", page=1)
     assert furniture and all(e.metadata["band"] in ("header", "footer") for e in furniture if "band" in e.metadata)
     content = [e.representations["text"] for e in s.of_type("text_block", page=1)]

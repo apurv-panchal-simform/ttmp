@@ -14,7 +14,7 @@ def result(tmp_path_factory, request):
 
 
 def test_sample_zones_match_the_plan(result):
-    z = {p: i["zone"] for p, i in result.store.pages.items()}
+    z = {p: i.zone for p, i in result.store.pages.items()}
     assert [z[p] for p in (1, 2, 3, 4)] == ["forms"] * 4
     assert [z[p] for p in range(6, 10)] == ["risk"] * 4
     assert [z[p] for p in range(10, 17)] == ["narrative"] * 7
@@ -48,7 +48,7 @@ def test_diagram_pages_are_flagged_low_text_quality(result):
 def test_header_footer_values_are_metadata_not_content(result):
     s = result.store
     assert s.metadata["tmp_reference"] == "KTS 26-1581"
-    assert s.pages[5]["printed_page"] == 5 and s.pages[18]["printed_page"] == 18
+    assert s.pages[5].printed_page == 5 and s.pages[18].printed_page == 18
     assert s.metadata["form_names"]["10"].lower().startswith("2. tmp job pack")
     assert not any("TMP Reference" in e.representations.get("text", "") for e in s.of_type("text_block"))
     assert s.of_type("page_furniture")
