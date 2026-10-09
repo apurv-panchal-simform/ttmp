@@ -1,0 +1,26 @@
+[project]
+name = "tmp-pipeline"
+version = "0.1.0"
+description = "TMP extraction, chunking and retrieval pipeline"
+authors = [
+    { name = "apurvpanchal-simform", email = "apurv.panchal@simformsolutions.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.3",
+    "opencv-python-headless>=5.0.0.93",
+    "pdfplumber>=0.11.10",
+    "pillow>=12.3.0",
+    "pypdf>=6.19.0",
+    "pypdfium2>=5.14.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "reportlab>=5.0.1",
+]

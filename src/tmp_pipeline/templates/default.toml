@@ -1,0 +1,61 @@
+# Template cues (plan sections 1.5, 1.6, 6.3). Everything layout-specific lives here, so a new
+# company's layout is a new file, not a code change. Values were read off the sample TMP.
+
+[page]
+header_band_pt = 62          # text above this distance from the top edge is header band
+footer_band_pt = 55          # text within this distance of the bottom edge is footer band
+
+[text]
+word_gap_em = 0.25           # gap wider than this x font size starts a new word
+segment_gap_em = 2.5         # gap wider than this x font size splits a line into segments
+segment_gap_min_pt = 15
+line_join_em = 0.6           # vertical gap (x font size) up to which segments form one block
+left_align_tol_pt = 4
+row_tol_pt = 3               # blocks whose tops are within this are read left to right
+
+[quality]
+low_threshold = 0.6          # share of dictionary words below which a text block is flagged
+min_words = 4                # blocks with fewer words are too short to judge (names, codes), unless unmapped glyphs show
+
+[tables]
+thin_pt = 2.0                # a rect thinner than this is a ruling line
+min_rule_len_pt = 6
+min_fill_pt = 5
+join_tol_pt = 1.0
+edge_tol_pt = 1.5
+min_parts = 4
+min_cells = 2
+
+[ticks]
+ticked = ["☒", "☑", "✓", "✔", "✗", "✘"]
+unticked = ["☐"]
+square_min_pt = 6
+square_max_pt = 16
+
+[furniture]
+min_page_share = 0.5         # repeated on more than this share of pages = page furniture
+form_name_regex = '(\d)\.\s*TMP\s+(.+?)\s+Form'
+tmp_ref_regex = '[A-Z]{2,5}\s?\d{2}-\d{4}'
+page_number_regex = 'Page\s+(\d+)'
+
+[zones]
+header_band_regex = 'TMP\s*Reference'
+sheet_no_regex = 'SHEET\s*NO'
+generic_code_regex = 'FH\.M\d+'
+diagram_image_cover = 0.5
+diagram_min_paths = 15
+rating_tol = 0.06
+rating_min_cells = 5
+risk_page_table_share = 0.5  # risk regions holding this share of a page's body table area make risk the page default
+rating_colours = [[1.0, 0.0, 0.0], [0.96, 0.52, 0.17], [1.0, 1.0, 0.0], [1.0, 0.95, 0.0], [0.0, 0.69, 0.31], [0.62, 0.98, 0.53]]
+
+[zones.form_kind]            # footer form name (lower case, between "TMP" and "Form") -> zone
+"planning" = "forms"
+"job pack" = "narrative"
+"regulatory authorisation" = "forms"
+
+[figures]
+decorative_max_area = 0.03   # smaller than this share of the page and no text inside = decorative
+informative_min_area = 0.05  # larger than this share = informative; in between = unclear (needs_x1)
+repeat_iou = 0.9             # same spot on most pages (IoU above this) = decorative
+repeat_min_pages = 3         # a figure cannot "repeat" in a document shorter than this
