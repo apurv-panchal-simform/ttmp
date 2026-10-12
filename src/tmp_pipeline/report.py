@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from .facts.model import Facts
 from .intake import IntakeResult
 from .models import ElementStore
 from .records import RecordStore
@@ -127,12 +128,76 @@ def _diagrams(store: ElementStore, records: RecordStore) -> list[str]:
     return L
 
 
+def _cell(v: object, width: int = 70) -> str:
+    text = " ".join(str(v).split()).replace("|", "/")
+    return text if len(text) <= width else text[:width - 1] + "…"
+
+
+def _facts(facts: Facts) -> list[str]:
+    L = ["", "## Facts and checks", "",
+         f"{len(facts.facts)} facts from {sum(len(f.sources) for f in facts.facts)} sources; "
+         f"{len(facts.other)} records hold no fact (tables, rows, matrix keys). Revision {facts.revision}."]
+    if facts.approval is not None:
+        a = facts.approval
+        L += ["", f"### Approval: {a.status}", "", "| Role | Page | Status | Name | Signature | Date |",
+              "| --- | --- | --- | --- | --- | --- |"]
+        L += [f"| {s.role} | {s.page} | {s.status} | {_cell(s.name or '')} | {_cell(s.signature or '')} | {s.date or ''} |"
+              for s in facts.signoffs]
+        L += [f"- {n}" for n in a.notes]
+    L += ["", "### Conflicts", ""]
+    if facts.conflicts:
+        L += ["| Id | Rule | Conflict | Versions (pages) |", "| --- | --- | --- | --- |"]
+        for c in facts.conflicts:
+            versions = "; ".join(f"{_cell(v.get('value'), 50)} (p. {', '.join(map(str, v.get('pages', [])))})"
+                                 for v in c.versions)
+            L.append(f"| {c.conflict_id} | {c.rule} | {c.title} | {versions} |")
+    else:
+        L.append("None.")
+    L += ["", "### Checks", "", "| Rule | Check | Outcome | Detail |", "| --- | --- | --- | --- |"]
+    L += [f"| {c.rule} | {c.name} | {c.outcome}{' ' + c.conflict_id if c.conflict_id else ''} | {_cell(c.detail, 90)} |"
+          for c in facts.checks]
+    if facts.tmd_sheets:
+        L += ["", "### Diagram register and mentions", "", "| Sheet | Title | Page | Mentions (pages) | Aliases from conflicts |",
+              "| --- | --- | --- | --- | --- |"]
+        for sh in facts.tmd_sheets:
+            pages = sorted({m.page for m in facts.mentions if m.mapped_to == sh.tmd_id})
+            extra = [m.text for m in facts.mentions if m.mapped_to == sh.tmd_id and m.id_conflict]
+            L.append(f"| {sh.tmd_id} | {sh.title} | {sh.page} | {', '.join(map(str, pages))} | "
+                     f"{_cell('; '.join(dict.fromkeys(extra)), 80)} |")
+        unmatched = [m for m in facts.mentions if m.mapped_to is None]
+        L += [f"- unmatched mention p{m.page}: {m.text!r} ({'; '.join(m.notes)})" for m in unmatched]
+    pointers = [(f, k, v) for f in facts.facts for k, v in f.fields.items() if v.method == "pointer" or
+                (v.value is None and any("refers elsewhere" in n for n in v.notes))]
+    if pointers:
+        L += ["", "### Pointers", ""]
+        L += [f"- {f.fact_id}.{k} ({_cell(v.raw or '', 40)}): " + (", ".join(v.link) if v.link else "unresolved")
+              for f, k, v in pointers]
+    merged = [f for f in facts.facts if len({s.record_id for s in f.sources}) > 1]
+    if merged:
+        L += ["", "### Merged records", ""]
+        L += [f"- {f.fact_id} from {', '.join(sorted({s.record_id for s in f.sources if s.record_id}))}" for f in merged]
+    if facts.review:
+        counts: dict[str, int] = {}
+        for r in facts.review:
+            counts[r.kind] = counts.get(r.kind, 0) + 1
+        L += ["", "### Review list", "", ", ".join(f"{k}: {n}" for k, n in sorted(counts.items())) +
+              f" (open: {sum(r.status == 'open' for r in facts.review)}); details in review.json."]
+    cov = facts.coverage
+    if cov:
+        L += ["", f"Coverage: {'complete' if cov.get('complete') else 'INCOMPLETE'}; "
+                  f"records unaccounted: {len(cov.get('records_unaccounted', []))}, "
+                  f"elements without outcome: {len(cov.get('without_outcome', []))}."]
+    return L
+
+
 def build_report(store: ElementStore, result: RouterResult, info: IntakeResult, records: RecordStore | None = None,
-                 gold_text: str | None = None) -> str:
+                 gold_text: str | None = None, facts: Facts | None = None) -> str:
     L = _phase1(store, result, info)
     if records is not None:
         L += _records(records)
         L += _diagrams(store, records)
+    if facts is not None:
+        L += _facts(facts)
     if gold_text:
         L += ["", "## Gold set", "", gold_text.rstrip()]
     return "\n".join(L) + "\n"

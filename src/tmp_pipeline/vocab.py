@@ -55,6 +55,8 @@ class Flag(StrEnum):
     REFERS_ELSEWHERE = "refers_elsewhere"
     MERGED = "merged"
     UNVERIFIED = "unverified"
+    # Phase 4
+    CONFLICT = "conflict"
 
 
 class Route(StrEnum):

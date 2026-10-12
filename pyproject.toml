@@ -18,10 +18,15 @@ dependencies = [
 
 [project.optional-dependencies]
 azure = ["azure-identity>=1.19"]
+postgres = ["psycopg[binary]>=3.2"]
 
 [project.scripts]
 tmp-pipeline = "tmp_pipeline.run:main"
 tmp-pipeline-di = "tmp_pipeline.di.run:main"
+tmp-pipeline-gold = "tmp_pipeline.gold.score:main"
+tmp-pipeline-facts = "tmp_pipeline.facts.cli:main_facts"
+tmp-pipeline-review = "tmp_pipeline.facts.cli:main_review"
+tmp-pipeline-db = "tmp_pipeline.db.run:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]
@@ -40,6 +45,7 @@ testpaths = ["tests"]
 markers = [
     "sample: needs tests/data/sample.pdf (fails instead of skipping when TMP_REQUIRE_SAMPLE=1)",
     "live: calls a live Azure service; skipped without credentials",
+    "postgres: writes to a PostgreSQL database; skipped without TMP_PG_DSN",
 ]
 
 [tool.ruff]

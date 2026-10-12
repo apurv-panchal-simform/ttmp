@@ -5,7 +5,8 @@
  "notes": [
   "Matrix and register ratings are what the printed matrix shows. Cell (likelihood 4, impact 4) = 16 prints orange (High); the plan text says red.",
   "rating_mismatch rows are those whose stated rating differs from the matrix cell at (likelihood, impact).",
-  "Sheets: legend, notes and roads are what the vectors draw; symbol specs were checked against the page renders by the extractor's author. Sheet 02's notes say 10M taper length, sheets 03 and 04 say 30M. The Pram Ramp swatch is read as grey hatched from the vectors; the render shows yellow."
+  "Sheets: legend, notes and roads are what the vectors draw; symbol specs were checked against the page renders by the extractor's author. Sheet 02's notes say 10M taper length, sheets 03 and 04 say 30M. The Pram Ramp swatch is read as grey hatched from the vectors; the render shows yellow.",
+  "facts: the four conflicts, approval and sign-off statuses, the diagram mention mapping (plan 3.2 table), See Above links and merges are keyed from the PDF by the extractor's author (draft, needs a second keying like the rest of this file)."
  ],
  "expected": [
   {
@@ -1908,5 +1909,224 @@
     }
    ]
   }
- ]
+ ],
+ "facts": {
+  "conflicts": [
+   {
+    "rule": 1,
+    "values": [
+     "KTS 26-1581",
+     "KTS 26-1580"
+    ],
+    "pages": [
+     1
+    ]
+   },
+   {
+    "rule": 2,
+    "values": [
+     "TMD4: Parking Management",
+     "TMD4: Unattended Worksite",
+     "TMD 01 – Shoulder Closure",
+     "TMD 02 – Lane Diversion",
+     "TMD 04 - Unattended worksite"
+    ],
+    "pages": [
+     3,
+     5,
+     10
+    ]
+   },
+   {
+    "rule": 3,
+    "values": [
+     "TMD-04"
+    ],
+    "pages": [
+     3,
+     10
+    ]
+   },
+   {
+    "rule": 4,
+    "values": [
+     "Two-way traffic will be maintained",
+     "TMD-04"
+    ],
+    "pages": [
+     12,
+     23
+    ]
+   }
+  ],
+  "approval": "partially_signed",
+  "signoffs": {
+   "ttm_designer": "signed",
+   "design_checker": "signed",
+   "activity_manager": "unsigned",
+   "rca_primary": "unsigned",
+   "rca_other": "not_applicable",
+   "rca_authorisation_form3": "unsigned"
+  },
+  "mentions": [
+   {
+    "page": 3,
+    "text": "TMD4: Parking Management",
+    "mapped_to": "TMD-01",
+    "id_conflict": true
+   },
+   {
+    "page": 3,
+    "text": "TMD4: Unattended Worksite",
+    "mapped_to": "TMD-05",
+    "id_conflict": true
+   },
+   {
+    "page": 3,
+    "text": "TMD2: Shoulder Closure",
+    "mapped_to": "TMD-02",
+    "id_conflict": false
+   },
+   {
+    "page": 3,
+    "text": "TMD3: Lane Diversion",
+    "mapped_to": "TMD-03",
+    "id_conflict": false
+   },
+   {
+    "page": 10,
+    "text": "TMD4: Parking Management",
+    "mapped_to": "TMD-01",
+    "id_conflict": true
+   },
+   {
+    "page": 10,
+    "text": "TMD4: Unattended Worksite",
+    "mapped_to": "TMD-05",
+    "id_conflict": true
+   },
+   {
+    "page": 10,
+    "text": "TMD2: Shoulder Closure",
+    "mapped_to": "TMD-02",
+    "id_conflict": false
+   },
+   {
+    "page": 10,
+    "text": "TMD3: Lane Diversion",
+    "mapped_to": "TMD-03",
+    "id_conflict": false
+   },
+   {
+    "page": 5,
+    "text": "TMD 01 – Shoulder Closure",
+    "mapped_to": "TMD-02",
+    "id_conflict": true
+   },
+   {
+    "page": 5,
+    "text": "TMD 02 – Lane Diversion",
+    "mapped_to": "TMD-03",
+    "id_conflict": true
+   },
+   {
+    "page": 5,
+    "text": "TMD 04 - Unattended worksite",
+    "mapped_to": "TMD-05",
+    "id_conflict": true
+   },
+   {
+    "page": 11,
+    "text": "TMD 04: STOP GO",
+    "mapped_to": "TMD-04",
+    "id_conflict": false
+   },
+   {
+    "page": 15,
+    "text": "TMD Sheet 04 Stop Go",
+    "mapped_to": "TMD-04",
+    "id_conflict": false
+   },
+   {
+    "page": 18,
+    "text": "TMD 03 Lane Diversion",
+    "mapped_to": "TMD-03",
+    "id_conflict": false
+   },
+   {
+    "page": 18,
+    "text": "TMD 04 Stop Go",
+    "mapped_to": "TMD-04",
+    "id_conflict": false
+   },
+   {
+    "page": 6,
+    "text": "TMD 02",
+    "mapped_to": "TMD-02",
+    "id_conflict": false
+   },
+   {
+    "page": 8,
+    "text": "TMD 05",
+    "mapped_to": "TMD-05",
+    "id_conflict": false
+   }
+  ],
+  "pointers": [
+   {
+    "entity": "work_period",
+    "field": "start_time",
+    "target": "shift_window.first_sign_in",
+    "page": 3
+   },
+   {
+    "entity": "work_period",
+    "field": "finish_time",
+    "target": "shift_window.site_cleared",
+    "page": 3
+   }
+  ],
+  "merged": [
+   {
+    "entity": "road",
+    "match": {
+     "road_name": "Sunrise Avenue"
+    },
+    "pages": [
+     4,
+     18
+    ]
+   },
+   {
+    "entity": "road",
+    "match": {
+     "road_name": "Gull Lane"
+    },
+    "pages": [
+     4,
+     18
+    ]
+   },
+   {
+    "entity": "shift_window",
+    "match": {
+     "day_type": "School days"
+    },
+    "pages": [
+     3,
+     11
+    ]
+   },
+   {
+    "entity": "work_period",
+    "match": {
+     "start_date": "2026-09-28"
+    },
+    "pages": [
+     4,
+     11
+    ]
+   }
+  ]
+ }
 }

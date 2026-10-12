@@ -347,3 +347,20 @@ def check_x10(result: dict | None, symbol_text: str = "") -> tuple[str | None, l
     if _numbers(caption) - _numbers(symbol_text):
         problems.append("the caption has a number the symbol does not show")
     return caption, problems
+
+
+def check_x11(result: dict | None, sheet_ids: list[str]) -> tuple[str | None, list[str]]:
+    """(tmd_id or None, problems): the id must be one of the document's sheets; "none" and low confidence leave the
+    mention unmatched, and a medium-confidence match is kept but not verified."""
+    if not isinstance(result, dict):
+        return None, ["no usable answer"]
+    tid = str(result.get("tmd_id") or "").strip()
+    if not tid or tid.lower() == "none":
+        return None, ["the model found no sheet that fits"]
+    if tid not in sheet_ids:
+        return None, [f"the model named {tid!r}, which is not a sheet of this document"]
+    conf = result.get("confidence")
+    if conf not in ("high", "medium"):
+        return None, ["low confidence"]
+    return tid, ([] if conf == "high" else ["medium confidence"])
+

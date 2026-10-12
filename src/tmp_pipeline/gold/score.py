@@ -14,8 +14,12 @@ heading). Measures:
   sheet facts exact          per diagram sheet, legend, notes and roads equal the gold lists (target 100%)
   symbol recall / precision  gold ``sheets[].symbols`` specs ({"kind", optional "value", "rp", "text", "n"}) found among
                              a sheet's symbols; precision counts only symbols of kinds the gold lists (target >= 95%)
+  conflict recall/precision  gold ``facts.conflicts`` ({"rule", "values", "pages"}) found among the run's conflicts: same
+                             rule, gold pages within the conflict's pages, each gold value inside one version (100%)
+  facts exact                approval status, sign-off block statuses, diagram mention mapping (page, text ->
+                             TMD id, id_conflict), pointer links, merged entities and rating mismatches (100%)
 
-Conflicts and approval status are Phase 4 and not scored here."""
+The facts measures run only when the gold file has a ``facts`` block and the run's facts are given."""
 from __future__ import annotations
 
 import json
@@ -23,7 +27,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..catalog import Catalog, load_catalog
+from ..catalog import Catalog, load_catalog, normalise
+from ..facts.model import Facts
 from ..models import ElementStore
 from ..records import FieldValue, Record, RecordStore
 
@@ -56,6 +61,12 @@ class GoldScore:
     symbols_matched: int = 0
     symbols_missing: list[str] = field(default_factory=list)
     symbols_extra: list[str] = field(default_factory=list)       # produced, of a gold kind, but not in gold
+    conflicts_expected: int = 0
+    conflicts_matched: int = 0
+    conflicts_produced: int = 0
+    conflicts_missing: list[str] = field(default_factory=list)
+    conflicts_extra: list[str] = field(default_factory=list)
+    facts_checks: list[tuple[str, str, bool]] = field(default_factory=list)   # (measure, item, ok)
 
     @property
     def n_fields(self) -> int:
@@ -102,10 +113,25 @@ class GoldScore:
         produced = self.symbols_matched + len(self.symbols_extra)
         return self.symbols_matched / produced if produced else 1.0
 
+    @property
+    def conflict_recall(self) -> float:
+        return self.conflicts_matched / self.conflicts_expected if self.conflicts_expected else 1.0
+
+    @property
+    def conflict_precision(self) -> float:
+        hit = self.conflicts_produced - len(self.conflicts_extra)
+        return hit / self.conflicts_produced if self.conflicts_produced else 1.0
+
+    @property
+    def facts_exact_rate(self) -> float:
+        c = self.facts_checks
+        return 1.0 if not c else sum(ok for _, _, ok in c) / len(c)
+
     def passes(self) -> bool:
         return (self.accuracy >= 0.98 and not self.wrong_verified and not self.invented and self.coverage == 1.0
                 and self.wrong_flagged_rate == 1.0 and self.unverified_hit_rate == 1.0 and self.flag_hit_rate == 1.0
-                and self.sheet_exact_rate == 1.0 and self.symbol_recall >= 0.95 and self.symbol_precision >= 0.95)
+                and self.sheet_exact_rate == 1.0 and self.symbol_recall >= 0.95 and self.symbol_precision >= 0.95
+                and self.conflict_recall == 1.0 and self.conflict_precision == 1.0 and self.facts_exact_rate == 1.0)
 
 
 def _norm(v: object) -> object:
@@ -198,10 +224,66 @@ def _score_sheets(records: RecordStore, gold: dict, out: GoldScore) -> None:
                               for s in left if s["kind"] in kinds]
 
 
-def score(records: RecordStore, store: ElementStore, gold: dict, catalog: Catalog | None = None) -> GoldScore:
+def _in(value: object, text: object) -> bool:
+    return normalise(str(value)) in normalise(str(text))
+
+
+def _score_facts(facts: Facts, gold: dict, expected: list[dict], out: GoldScore) -> None:
+    g = gold["facts"]
+    used: set[str] = set()
+    for gc in g.get("conflicts", []):
+        out.conflicts_expected += 1
+        hit = next((c for c in facts.conflicts if c.conflict_id not in used and c.rule == gc["rule"]
+                    and set(gc.get("pages", [])) <= {p for v in c.versions for p in v.get("pages", [])}
+                    and all(any(_in(want, v.get("value")) for v in c.versions) for want in gc.get("values", []))),
+                   None)
+        if hit is None:
+            out.conflicts_missing.append(f"rule {gc['rule']}: {gc.get('values')} pages {gc.get('pages')}")
+        else:
+            used.add(hit.conflict_id)
+            out.conflicts_matched += 1
+    out.conflicts_produced = len(facts.conflicts)
+    out.conflicts_extra = [f"{c.conflict_id} rule {c.rule}: {c.title}" for c in facts.conflicts
+                           if c.conflict_id not in used]
+    check = out.facts_checks.append
+    if "approval" in g:
+        got = facts.approval.status if facts.approval else None
+        check(("approval", f"{g['approval']} (got {got})", got == g["approval"]))
+    by_role = {s.role: s.status for s in facts.signoffs}
+    for role, status in g.get("signoffs", {}).items():
+        check(("signoff", f"{role}: {status} (got {by_role.get(role)})", by_role.get(role) == status))
+    for gm in g.get("mentions", []):
+        m = next((x for x in facts.mentions if x.page == gm["page"]
+                  and normalise(x.text).startswith(normalise(gm["text"]))), None)
+        ok = m is not None and m.mapped_to == gm["mapped_to"] and m.id_conflict == gm.get("id_conflict", False)
+        got = f"{m.mapped_to}, id_conflict={m.id_conflict}" if m else "not found"
+        check(("mention", f"p{gm['page']} {gm['text']} -> {gm['mapped_to']} (got {got})", ok))
+    for gp in g.get("pointers", []):
+        fv = next((f.fields.get(gp["field"]) for f in facts.of(gp["entity"]) if gp["field"] in f.fields), None)
+        tentity, _, tfield = gp["target"].partition(".")
+        links = fv.link if fv is not None else []
+        targets = [facts.fact(path.partition(".")[0]) for path in links]
+        ok = (bool(links) and all(path.endswith(f".{tfield}") for path in links)
+              and all(t is not None and t.entity == tentity and gp["page"] in t.pages() for t in targets))
+        check(("pointer", f"{gp['entity']}.{gp['field']} -> {gp['target']} p{gp['page']}", ok))
+    for gm in g.get("merged", []):
+        f = next((x for x in facts.of(gm["entity"]) if all(
+            k in x.fields and _equal(x.fields[k].value, v) for k, v in gm["match"].items())), None)
+        check(("merged", f"{gm['entity']} {gm['match']} pages {gm['pages']}", f is not None
+               and set(gm["pages"]) <= set(f.pages())))
+    want = sorted(e["page"] for e in expected if "rating_mismatch" in e.get("flags", []))
+    found = sorted(p for f in facts.of("risk") if "rating_mismatch" in f.flags for p in f.pages())
+    if want:
+        check(("rating_mismatch", f"pages {want} (got {found})", want == found))
+
+
+def score(records: RecordStore, store: ElementStore, gold: dict, catalog: Catalog | None = None,
+          facts: Facts | None = None) -> GoldScore:
     catalog = catalog or load_catalog()
     out = GoldScore()
     _score_sheets(records, gold, out)
+    if facts is not None and "facts" in gold:
+        _score_facts(facts, gold, gold["expected"], out)
     gold_kinds_pages = {(g["kind"], g["page"]) for g in gold["expected"]}
     for i, g in enumerate(gold["expected"]):
         gid = g.get("id") or f"{g['kind']}:p{g['page']}:{i}"
@@ -256,6 +338,12 @@ def render(s: GoldScore) -> str:
         lines += [f"| Sheet facts exact (legend, notes, roads) | {pct(s.sheet_exact_rate)} ({len(s.sheet_checks)}) | 100% |",
                   f"| Symbol recall | {pct(s.symbol_recall)} ({s.symbols_matched}/{s.symbols_expected}) | >= 95% |",
                   f"| Symbol precision | {pct(s.symbol_precision)} ({s.symbols_matched}/{s.symbols_matched + len(s.symbols_extra)}) | >= 95% |"]
+    if s.conflicts_expected or s.facts_checks:
+        lines += [f"| Conflicts found (recall) | {pct(s.conflict_recall)} ({s.conflicts_matched}/{s.conflicts_expected}) | 100% |",
+                  f"| Conflicts expected (precision) | {pct(s.conflict_precision)} "
+                  f"({s.conflicts_produced - len(s.conflicts_extra)}/{s.conflicts_produced}) | 100% |",
+                  f"| Facts exact (approval, sign-offs, mentions, pointers, merges, ratings) | "
+                  f"{pct(s.facts_exact_rate)} ({len(s.facts_checks)}) | 100% |"]
     if s.wrong:
         lines += ["", "Wrong or missing fields:", ""]
         lines += [f"- {r.gold_id} `{r.field}`: expected {r.expected!r}, got {r.actual!r} ({r.outcome}, {r.status})" for r in s.wrong]
@@ -266,6 +354,9 @@ def render(s: GoldScore) -> str:
     for gid, fname, hit in s.unverified_expected + s.flag_expected:
         if not hit:
             lines.append(f"- {gid} `{fname}`: expected unverified or flag not present")
+    lines += [f"- conflict not found: {m}" for m in s.conflicts_missing]
+    lines += [f"- conflict not in gold: {m}" for m in s.conflicts_extra]
+    lines += [f"- {what} wrong: {item}" for what, item, ok in s.facts_checks if not ok]
     if s.invented:
         lines += ["", "Fields not grounded in the elements they cite:", ""]
         lines += [f"- {rid} `{f}`: {raw!r}" for rid, f, raw in s.invented]
@@ -279,8 +370,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("gold", help="gold JSON file")
     a = ap.parse_args(argv)
     d = Path(a.doc_dir)
+    facts = Facts.load(d / "facts.json") if (d / "facts.json").exists() else None
     s = score(RecordStore.load(d / "records.json"), ElementStore.load(d / "elements.json"),
-              json.loads(Path(a.gold).read_text(encoding="utf-8")))
+              json.loads(Path(a.gold).read_text(encoding="utf-8")), facts=facts)
     print(render(s))
     return 0 if s.passes() else 1
 

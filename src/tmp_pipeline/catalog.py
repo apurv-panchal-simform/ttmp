@@ -15,7 +15,8 @@ import yaml
 from .errors import PipelineError
 
 DEFAULT_CATALOG = Path(__file__).resolve().parent / "templates" / "catalog.yaml"
-FIELD_TYPES = {"text", "integer", "number", "percent", "date", "time", "rp", "speed", "distance", "duration", "bool"}
+FIELD_TYPES = {"text", "integer", "number", "percent", "date", "time", "rp", "speed", "distance", "duration", "bool",
+               "list"}
 
 
 class CatalogError(PipelineError):
@@ -45,6 +46,13 @@ class EntityDef:
     description: str
     match_key: tuple[str, ...]
     fields: dict[str, FieldDef]
+    one_per_document: bool = False   # every record of this entity describes the same thing (merged into one fact)
+
+
+@dataclass(frozen=True)
+class SignoffReq:
+    role: str
+    condition: str | None = None    # the requirement applies only when this document condition holds (tsl_requested)
 
 
 @dataclass(frozen=True)
@@ -64,11 +72,18 @@ class EntityMatch:
 
 class Catalog:
     def __init__(self, version: str, entities: dict[str, EntityDef], sections: dict[str, SectionDef],
-                 required_signoffs: tuple[str, ...] = ()):
+                 required_signoffs: tuple[SignoffReq, ...] = (), facts_entities: dict[str, EntityDef] | None = None,
+                 record_kinds: dict[str, str] | None = None,
+                 diagram_title_synonyms: dict[str, tuple[str, ...]] | None = None):
         self.version = version
-        self.entities = entities
+        self.entities = entities            # what handlers map names to (synonyms drive code, descriptions prompts)
         self.sections = sections
         self.required_signoffs = required_signoffs
+        # Phase 4: entities built by the field mapper only. They never take part in name matching or prompts,
+        # so adding one cannot change what a handler reads.
+        self.facts_entities = facts_entities or {}
+        self.record_kinds = record_kinds or {}          # record kind -> fact entity, copied one to one
+        self.diagram_title_synonyms = diagram_title_synonyms or {}   # canonical title -> other names for it
         self._field_index: dict[str, dict[str, str]] = {}
         for ename, ent in entities.items():
             idx: dict[str, str] = {}
@@ -132,6 +147,35 @@ def _fields(owner: str, raw: dict | None) -> dict[str, FieldDef]:
     return out
 
 
+def _entities(raw: dict | None) -> dict[str, EntityDef]:
+    out: dict[str, EntityDef] = {}
+    for ename, ent in (raw or {}).items():
+        extra = set(ent) - {"description", "match_key", "fields", "one_per_document"}
+        if extra:
+            raise CatalogError(f"{ename}: unknown key(s) {sorted(extra)}")
+        fields_ = _fields(ename, ent.get("fields"))
+        key = tuple(ent.get("match_key", ()))
+        if any(k not in fields_ for k in key):
+            raise CatalogError(f"{ename}.match_key: {list(key)} names a field the entity does not have")
+        out[ename] = EntityDef(ename, ent.get("description", ""), key, fields_, bool(ent.get("one_per_document")))
+    return out
+
+
+def _signoffs(raw: list | None) -> tuple[SignoffReq, ...]:
+    out = []
+    for item in raw or ():
+        if isinstance(item, str):
+            out.append(SignoffReq(item))
+        elif isinstance(item, dict) and len(item) == 1:
+            (role, spec), = item.items()
+            if not isinstance(spec, dict) or set(spec) - {"if"}:
+                raise CatalogError(f"required_signoffs.{role}: expected {{if: <condition>}}")
+            out.append(SignoffReq(role, spec.get("if")))
+        else:
+            raise CatalogError(f"required_signoffs: cannot read {item!r}")
+    return tuple(out)
+
+
 def load_catalog(path: str | Path | None = None) -> Catalog:
     p = Path(path) if path else DEFAULT_CATALOG
     try:
@@ -142,14 +186,17 @@ def load_catalog(path: str | Path | None = None) -> Catalog:
         raise CatalogError(f"{p}: invalid YAML: {e}") from e
     if not isinstance(raw, dict) or "version" not in raw:
         raise CatalogError(f"{p}: expected a mapping with a version")
-    entities: dict[str, EntityDef] = {}
-    for ename, ent in (raw.get("entities") or {}).items():
-        entities[ename] = EntityDef(ename, ent.get("description", ""), tuple(ent.get("match_key", ())),
-                                    _fields(ename, ent.get("fields")))
+    entities = _entities(raw.get("entities"))
+    facts_entities = _entities(raw.get("facts_entities"))
+    clash = sorted(set(entities) & set(facts_entities))
+    if clash:
+        raise CatalogError(f"entities and facts_entities both define {clash}")
     sections: dict[str, SectionDef] = {}
     for sname, s in (raw.get("sections") or {}).items():
         raw_fields = s.get("fields") or []
         if isinstance(raw_fields, list):          # a plain list of names carries no type information
             raw_fields = {f: {"type": "text"} for f in raw_fields}
         sections[sname] = SectionDef(sname, tuple(s.get("heading_synonyms", ())), _fields(sname, raw_fields))
-    return Catalog(str(raw["version"]), entities, sections, tuple(raw.get("required_signoffs", ())))
+    synonyms = {str(k): tuple(v or ()) for k, v in (raw.get("diagram_title_synonyms") or {}).items()}
+    return Catalog(str(raw["version"]), entities, sections, _signoffs(raw.get("required_signoffs")),
+                   facts_entities, dict(raw.get("record_kinds") or {}), synonyms)

@@ -202,3 +202,33 @@ def label(c, x, y, text, w=30, h=9):
     c.setFillColorRGB(0, 0, 0)
     c.setFont("Helvetica", 6)
     c.drawString(x + 2, y + 2.5, text)
+
+
+# --- hand-built records (Phase 4 field mapper and checks, no handlers involved) -----------------------------------
+
+def rec(kind, page, fields=None, *, data=None, entity=None, flags=(), elements=(), applicability="active"):
+    """A record whose fields are plain values (or FieldValues); raw text defaults to the value as a string."""
+    from tmp_pipeline.records import Evidence, FieldValue, Record, Stamp
+    f = {k: v if isinstance(v, FieldValue) else FieldValue(v, raw=None if v is None else str(v))
+         for k, v in (fields or {}).items()}
+    return Record(kind, page, Stamp("test", "0"), f, entity, [Evidence(e) for e in elements], flags=list(flags),
+                  applicability=applicability, data=dict(data or {}))
+
+
+def record_store(*records):
+    from tmp_pipeline.records import RecordStore
+    rs = RecordStore("sha256:test")
+    for r in records:
+        rs.add(r)
+    return rs
+
+
+def sheet_record(page, sheet, title):
+    """A diagram_sheet record as the diagram handler writes it (title block fields only)."""
+    return rec("diagram_sheet", page, {"tmd_id": f"TMD-{sheet}", "sheet": sheet, "title": title, "rev": "00",
+                                       "tmp_number": "KTS 26-1581"}, data={"sheet": sheet}, entity="tmd_sheet")
+
+
+def pairs_table(page, pairs, group=None):
+    return rec("table", page, data={"table": f"p{page}:table:0", "shape": "label_value",
+                                    "pairs": [{"label": a, "value": b, "group": group} for a, b in pairs], "cells": []})

@@ -170,6 +170,31 @@ class DiagramsCfg:
 
 
 @dataclass(frozen=True)
+class FactsCfg:
+    tmd_mention: re.Pattern[str]            # a diagram reference; group 1 is its number
+    title_stop: re.Pattern[str]             # a mention's title ends where this matches...
+    title_max_words: int                                # ...or after this many words
+    title_stopwords: tuple[str, ...]                    # words that never decide which sheet a title names
+    stage_list_context: re.Pattern[str]     # a group label or heading path that holds a stage list
+    name_abbreviations: dict[str, str]                  # word -> full word, applied before names are compared
+    day_types: dict[str, re.Pattern[str]]               # canonical day type -> how it is written
+    pointer_targets: dict[str, str]                     # "entity.field" that says "See Above" -> where it points
+    tsl_row: re.Pattern[str]                # a table row whose headers match this states a speed limit
+    tsl_requested: re.Pattern[str]          # authorisation text that requests a temporary speed limit
+    order_reference_label: re.Pattern[str]  # the label of the client order / TMP reference pair
+    contact_labels: re.Pattern[str]         # a label/value pair whose label matches this names a contact
+    heading_max_gap_pt: float                           # text this close above a sign-off table names its block
+    signoff_roles: dict[str, re.Pattern[str]]           # role -> heading cue, first match wins
+    signoff_labels: dict[str, re.Pattern[str]]          # field -> printed label in the sign-off grid
+    checked_by_role: str                                # a "Checked by" label row starts a block for this role
+    flow_statements: dict[str, re.Pattern[str]]         # traffic mode -> sentence that claims it
+    diagram_modes: dict[str, re.Pattern[str]]           # traffic mode -> sheet title that shows it
+    incompatible_modes: tuple[str, ...]                 # "a:b": a statement of mode a contradicts a sheet of mode b
+    start_date_fields: tuple[str, ...]                  # "entity.field" start dates that must all agree (rule 7)
+    end_date_fields: tuple[str, ...]                    # "entity.field" end dates that must all agree (rule 7)
+
+
+@dataclass(frozen=True)
 class Config:
     page: PageCfg
     intake: IntakeCfg
@@ -183,6 +208,7 @@ class Config:
     zones: ZonesCfg
     figures: FiguresCfg
     diagrams: DiagramsCfg
+    facts: FactsCfg
     template: str = "default"
     sha: str = ""              # hash of the merged raw config, stamped on every run and record
 
@@ -281,6 +307,21 @@ def _validate(c: Config) -> None:
     check(0 <= d.near_dup_bits < 64, "diagrams.near_dup_bits: must be in [0, 64)")
     for key in ("rp_label", "dimension_label", "road_label", "house_label", "speed_value", "controller"):
         check(key in d.patterns, f"diagrams.patterns: missing {key!r}")
+    f = c.facts
+    check(f.title_max_words > 0, "facts.title_max_words: must be positive")
+    check(f.heading_max_gap_pt > 0, "facts.heading_max_gap_pt: must be positive")
+    check(f.tmd_mention.groups >= 1, "facts.tmd_mention: needs a group for the sheet number")
+    for key in ("signature", "date", "name", "checked_by"):
+        check(key in f.signoff_labels, f"facts.signoff_labels: missing {key!r}")
+    for pair in f.incompatible_modes:
+        a, _, b = pair.partition(":")
+        check(a in f.flow_statements and b in f.diagram_modes,
+              f"facts.incompatible_modes: {pair!r} must be <flow_statements key>:<diagram_modes key>")
+    for src, dst in f.pointer_targets.items():
+        check(src.count(".") == 1 and dst.count(".") == 1,
+              f"facts.pointer_targets.{src}: both sides must be entity.field")
+    for name in (*f.start_date_fields, *f.end_date_fields):
+        check(name.count(".") == 1, f"facts: date field {name!r} must be entity.field")
     check(c.figures.decorative_max_area <= c.figures.informative_min_area,
           "figures: decorative_max_area must not exceed informative_min_area")
     for i, rgb in enumerate(c.zones.rating_colours):

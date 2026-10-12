@@ -124,9 +124,11 @@ def test_the_sample_run_meets_the_phase_2_gold_targets(sample_pdf, tmp_path):
     from tmp_pipeline.run import run as run_pipeline
     res = run_pipeline(sample_pdf, tmp_path, render=False)
     sc = score(RecordStore.load(res.out_dir / "records.json"), ElementStore.load(res.out_dir / "elements.json"),
-               json.loads(GOLD_FILE.read_text(encoding="utf-8")))
+               json.loads(GOLD_FILE.read_text(encoding="utf-8")), facts=res.facts)
     assert sc.passes(), render(sc)
     assert sc.n_fields > 250 and sc.n_records > 80
+    assert sc.conflicts_expected == 4 and sc.conflict_recall == sc.conflict_precision == 1.0   # Phase 4 exit
+    assert len(sc.facts_checks) > 25 and sc.facts_exact_rate == 1.0
 
 
 # --- sheet facts (Phase 3) ------------------------------------------------------------------------------------------
@@ -199,3 +201,61 @@ def test_a_missing_sheet_record_fails_every_sheet_measure_and_counts_its_symbols
 def test_symbol_text_matches_ignoring_spacing_and_case():
     rec = _sheet_record([_sym("end_of_works_sign", text="W O RK SE ND")])
     assert _score_sheet(rec, _sheet_gold([{"kind": "end_of_works_sign", "text": "works end"}])).symbol_recall == 1.0
+
+
+# --- facts (Phase 4) ------------------------------------------------------------------------------------------------
+
+def _facts():
+    from tmp_pipeline.facts.model import Approval, Conflict, Facts, Signoff, Source, TmdMention
+    f = Facts("sha256:t")
+    f.conflicts = [Conflict("C-001", 1, "TMP reference differs", [{"value": "KTS 26-1581", "pages": [1, 2]},
+                                                                 {"value": "KTS 26-1580", "pages": [1]}])]
+    f.signoffs = [Signoff("ttm_designer", 16, "signed"), Signoff("activity_manager", 16, "unsigned")]
+    f.approval = Approval("partially_signed")
+    f.mentions = [TmdMention("m3:0", "TMD4: Parking Management", 4, "Parking Management", 3, Source("r3:table:0", 3),
+                             mapped_to="TMD-01", id_conflict=True)]
+    return f
+
+
+FACTS_GOLD = {"expected": [], "facts": {
+    "conflicts": [{"rule": 1, "values": ["KTS 26-1581", "KTS 26-1580"], "pages": [1]}],
+    "approval": "partially_signed", "signoffs": {"ttm_designer": "signed", "activity_manager": "unsigned"},
+    "mentions": [{"page": 3, "text": "TMD4: Parking Management", "mapped_to": "TMD-01", "id_conflict": True}]}}
+
+
+def _score_facts(facts, gold=FACTS_GOLD):
+    s = store_with_page()
+    return score(RecordStore(s.doc_id), s, gold, facts=facts)
+
+
+def test_matching_facts_pass_and_render_their_rows():
+    sc = _score_facts(_facts())
+    assert sc.passes(), render(sc)
+    assert "Conflicts found (recall) | 100.0% (1/1)" in render(sc)
+
+
+def test_a_missed_conflict_lowers_recall_and_an_unexpected_one_lowers_precision():
+    from tmp_pipeline.facts.model import Conflict
+    f = _facts()
+    f.conflicts = [Conflict("C-001", 4, "Something else", [{"value": "x", "pages": [9]}])]
+    sc = _score_facts(f)
+    assert sc.conflict_recall == 0.0 and sc.conflict_precision == 0.0 and not sc.passes()
+    assert "conflict not found: rule 1" in render(sc) and "conflict not in gold: C-001 rule 4" in render(sc)
+
+
+def test_wrong_approval_signoff_or_mention_fails_the_facts_measure():
+    for spoil in (lambda f: setattr(f.approval, "status", "signed"),
+                  lambda f: setattr(f.signoffs[1], "status", "signed"),
+                  lambda f: setattr(f.mentions[0], "mapped_to", "TMD-04"),
+                  lambda f: setattr(f.mentions[0], "id_conflict", False)):
+        f = _facts()
+        spoil(f)
+        sc = _score_facts(f)
+        assert sc.facts_exact_rate < 1.0 and not sc.passes(), render(sc)
+
+
+def test_facts_measures_are_skipped_without_run_facts():
+    s = store_with_page()
+    sc = score(RecordStore(s.doc_id), s, FACTS_GOLD)
+    assert sc.conflicts_expected == 0 and not sc.facts_checks and sc.passes()
+

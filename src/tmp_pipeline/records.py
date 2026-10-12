@@ -26,6 +26,8 @@ class Status(StrEnum):
     VERIFIED = "verified"
     UNVERIFIED = "unverified"
     NOT_APPLICABLE = "not_applicable"      # for example a struck-through section
+    CONFLICT = "conflict"                  # the document contradicts itself; every version is kept (Phase 4)
+    REVIEWED = "reviewed"                  # a person confirmed or corrected the value (Phase 4)
 
 
 @dataclass

@@ -7,6 +7,7 @@ VERSIONS = {
     "prompt": "0.0.0",
     "model": "none",
     "chunker": "0.0.0",
+    "facts": "0.1.0",
 }
 
 

@@ -186,16 +186,19 @@ def test_cli_default_run_only_evaluates_triggers_and_cache_only_builds_elements(
     assert "p1:ocr_word:0" in ElementStore.load(res.out_dir / "di_elements.json").elements
 
 
-def test_core_package_does_not_import_the_di_package():
+@pytest.mark.parametrize("optional", ["di", "db"])
+def test_core_package_does_not_import_the_optional_packages(optional):
+    """Document Intelligence (di) and the PostgreSQL store (db) are optional: only they may import themselves."""
     import ast
     root = Path(__file__).parent.parent / "src" / "tmp_pipeline"
     for path in root.rglob("*.py"):
-        if "di" in path.relative_to(root).parts[:1]:
+        if optional in path.relative_to(root).parts[:1]:
             continue
         for node in ast.walk(ast.parse(path.read_text())):
             mods = [n.name for n in node.names] if isinstance(node, ast.Import) else \
                    [node.module or ""] if isinstance(node, ast.ImportFrom) else []
-            assert not any(m == "di" or m.startswith("di.") or m.endswith(".di") or ".di." in m for m in mods), path
+            assert not any(m == optional or m.startswith(f"{optional}.") or m.endswith(f".{optional}")
+                           or f".{optional}." in m for m in mods), path
 
 
 @pytest.mark.skipif(not (os.environ.get("AZURE_DI_ENDPOINT") and os.environ.get("AZURE_DI_KEY")),

@@ -1,4 +1,4 @@
-"""Prompts X2-X6 (plan part 2), text copied from the plan. Each builder returns a ``ModelRequest`` whose key
+"""Prompts X2-X11 (plan parts 2 and 3), text copied from the plan. Each builder returns a ``ModelRequest`` whose key
 covers the prompt version, so editing a prompt here (and bumping its version) invalidates exactly its cache."""
 from __future__ import annotations
 
@@ -7,11 +7,12 @@ import json
 from .client import ModelRequest
 
 PROMPT_VERSIONS = {"X2": "1.0", "X3": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0",
-                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0"}
+                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0", "X11": "1.0"}
 
 # Deployments named in the plan; change them in one place when the model choice is settled (open decision).
 MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-sol", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
-          "X7": "gpt-6-sol", "X8": "gpt-6-sol", "X9": "gpt-6-sol", "X10": "gpt-6-sol"}
+          "X7": "gpt-6-sol", "X8": "gpt-6-sol", "X9": "gpt-6-sol", "X10": "gpt-6-sol",
+          "X11": "gpt-5.4"}
 # The independent second read of an image (failed checks, critical fields): a different model generation (plan 2.6, 2.7).
 READ2_MODEL = "gpt-5.5"
 
@@ -170,6 +171,16 @@ In a few words, what is this symbol? (for example "keep-left arrow sign",
 "cone bar", "bus stop sign"). If unsure, say "unclear".
 Reply JSON: {{"caption": "...", "confidence": "high|medium|low"}}"""
 
+_X11_SYSTEM = """You match a reference to a traffic management diagram (TMD) to one diagram
+sheet from the same document. Match on meaning, not wording. Never guess."""
+
+_X11_USER = """Diagram sheets in this document (from their title blocks):
+{sheet_list}
+Mention: "{mention_text}"
+Surrounding sentence: "{context}"
+Which sheet does the mention refer to? If none clearly fits, answer "none".
+Reply JSON: {{"tmd_id": "<id or none>", "confidence": "high|medium|low", "reason": "<short>"}}"""
+
 
 def _req(pid: str, system: str, user: str, images: tuple[bytes, ...] = (), model: str | None = None) -> ModelRequest:
     return ModelRequest(pid, PROMPT_VERSIONS[pid], model or MODELS[pid], user, system, images, {"temperature": 0})
@@ -240,3 +251,9 @@ def x9_read_region(crop_png: bytes, region_type: str, legend: str, ocr_words: li
 
 def x10_caption_symbol(crop_png: bytes, legend: str, colours: str) -> ModelRequest:
     return _req("X10", "", _X10_USER.format(legend=legend, colours=colours), (crop_png,))
+
+
+def x11_match_mention(sheet_list: list[tuple[str, str]], mention_text: str, context: str) -> ModelRequest:
+    """``sheet_list`` is (tmd_id, title) per sheet, in sheet order."""
+    sheets = "\n".join(f"{tid}: {title}" for tid, title in sheet_list) or "(none)"
+    return _req("X11", _X11_SYSTEM, _X11_USER.format(sheet_list=sheets, mention_text=mention_text, context=context))

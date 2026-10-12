@@ -148,3 +148,61 @@ originator = '^DRAWINGORIGINATOR:?$'
 [diagrams.area_meanings]     # legend meaning (lower case) -> area kind
 "work area" = "work_area"
 "safety zone" = "safety_zone"
+
+[facts]                      # Phase 4: field mapper, pointers, diagram ids, sign-offs and checks (plan part 3)
+tmd_mention = '(?i)\bTMD\s*(?:[-–]\s*)?(?:Sheet\s*|No\.?\s*)?0*(\d{1,2})\b'
+title_stop = '(?i)\bTMD\b|[,;.()\[\]\n]|\s(?:and|as per|with|for)\s'
+title_max_words = 4
+title_stopwords = ["the", "a", "an", "of", "and", "for", "to", "plan", "sheet", "tmd", "management", "traffic"]
+stage_list_context = '(?i)ttm stages|work staging|staging'
+heading_max_gap_pt = 90.0
+tsl_row = '(?i)tsl|temporary speed limit'
+tsl_requested = '(?i)temporary speed limit'
+order_reference_label = '(?i)order\s*/\s*reference|tmp order'
+contact_labels = '(?i)^(client|contractor|subcontractor|stms|site contact)\b'
+checked_by_role = "design_checker"
+incompatible_modes = ["two_way:stop_go"]
+start_date_fields = ["work_period.start_date", "speed_limit.date_from"]
+end_date_fields = ["work_period.end_date", "speed_limit.date_to"]
+
+[facts.name_abbreviations]   # applied word by word before road and place names are compared
+ave = "avenue"
+rd = "road"
+st = "street"
+dr = "drive"
+pl = "place"
+cres = "crescent"
+hwy = "highway"
+ln = "lane"
+tce = "terrace"
+
+[facts.day_types]            # canonical day type -> how it is written (case-insensitive)
+school_days = '(?i)school\s*days'
+school_holidays = '(?i)school\s*holidays'
+weekends = '(?i)week\s*ends?'
+
+[facts.pointer_targets]      # a "See Above" in the first field resolves to the second, nearest earlier in the same form
+"work_period.start_time" = "shift_window.first_sign_in"
+"work_period.finish_time" = "shift_window.site_cleared"
+
+[facts.signoff_roles]        # role -> cue in the heading above the block or its first row; first match wins
+rca_authorisation_form3 = '(?i)authorise this request'
+rca_other = '(?i)other network'
+rca_primary = '(?i)primary network'
+activity_manager = '(?i)activity manager'
+ttm_designer = '(?i)ttm designer|designed by'
+
+[facts.signoff_labels]       # field -> printed label in a sign-off grid (the value is in the cell below)
+name = '(?i)^name:?$'
+email = '(?i)^e-?mail:?$'
+phone = '(?i)^phone:?$'
+organisation = '(?i)^organisation(\s+and\s+role)?:?$'
+signature = '(?i)^signature:?$'
+date = '(?i)^date:?$'
+checked_by = '(?i)^checked\s+by:?$'
+
+[facts.flow_statements]      # traffic mode -> sentence in the text that claims it (rule 4)
+two_way = '(?i)two[-\s]way traffic (?:will be|is) maintained'
+
+[facts.diagram_modes]        # traffic mode -> diagram sheet title that shows it (rule 4)
+stop_go = '(?i)\bstop\s*[/-]?\s*go\b'

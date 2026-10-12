@@ -1,4 +1,4 @@
-"""Entry point: intake -> layers -> elements -> zones -> furniture -> masters -> diagram stage -> router.
+"""Entry point: intake -> layers -> elements -> zones -> furniture -> masters -> diagram stage -> router -> facts.
 
     python -m tmp_pipeline.run <pdf> --out out/ [--template file.toml] [--force] [--skip-render]
 """
@@ -12,11 +12,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import logging_ as lg
+from .catalog import load_catalog
 from .config import ConfigError, load_config
 from .constants import MASTER_DPI
 from .contracts import HandlerRegistry
 from .diagrams.stage import read_diagrams
 from .errors import PipelineError
+from .facts import Facts, map_fields, run_checks
+from .facts.model import review_json
 from .furniture import apply_furniture
 from .gold.score import render as render_gold
 from .gold.score import score as score_gold
@@ -42,6 +45,7 @@ class RunResult:
     store: ElementStore | None = None
     router: RouterResult | None = None
     records: RecordStore | None = None
+    facts: Facts | None = None
 
 
 FAILED_MARKER = "FAILED"
@@ -107,22 +111,35 @@ def run(pdf_path: str | Path, out_root: str | Path, template: str | Path | None 
         current = "router"
         with lg.stage("router"):
             result = route(store, cfg, out / "router.log", registry or build_registry(), records, model, sheets=sheets, out_dir=out)
+        catalog = load_catalog()
+        current = "map_fields"
+        with lg.stage("map_fields"):
+            facts = map_fields(store, records, cfg, catalog, model)
+        current = "run_checks"
+        with lg.stage("run_checks"):
+            run_checks(facts, store, records, cfg, catalog)
         current = "outputs"
         store.dump(out / "elements.json")
         records.dump(out / "records.json")
         if len(sheets):
             sheets.dump(out / "sheets.json")
+        current = "write_facts"
+        with lg.stage("write_facts"):
+            facts.dump(out / "facts.json")
+            atomic_write_text(out / "review.json", review_json(facts))
+        current = "outputs"
         gold_text = None
         if gold is not None:
-            gold_score = score_gold(records, store, json.loads(Path(gold).read_text(encoding="utf-8")))
+            gold_score = score_gold(records, store, json.loads(Path(gold).read_text(encoding="utf-8")), facts=facts)
             gold_text = render_gold(gold_score)
             lg.log_event("gold", "scored", accuracy=gold_score.accuracy, wrong_verified=len(gold_score.wrong_verified),
                          invented=len(gold_score.invented), coverage=gold_score.coverage, passes=gold_score.passes())
-        atomic_write_text(out / "report.md", build_report(store, result, info, records, gold_text))
+        atomic_write_text(out / "report.md", build_report(store, result, info, records, gold_text, facts))
         mark_done(out_root, info.doc_id)
         lg.log_event("run", "done", elements=len(store.elements), records=len(records),
-                     coverage=result.coverage(store)["coverage"], failed=len(result.failures))
-        return RunResult(info, out, False, store, result, records)
+                     coverage=result.coverage(store)["coverage"], failed=len(result.failures),
+                     conflicts=len(facts.conflicts), approval=facts.approval.status if facts.approval else None)
+        return RunResult(info, out, False, store, result, records, facts)
     except BaseException as exc:
         _write_failure(out, current, exc, store)
         raise

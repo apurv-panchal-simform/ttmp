@@ -83,3 +83,19 @@ def test_run_log_lines_all_carry_run_and_doc_id(result):
 
 def test_every_element_has_a_pixel_box(result):
     assert all(e.bbox_px and len(e.bbox_px) == 4 for e in result.store.elements.values())
+
+
+def test_phase_4_facts_on_the_sample(result):
+    """Plan 8.3 phase 4 exit: all four conflicts and partially_signed detected."""
+    f = result.facts
+    assert [(c.conflict_id, c.rule) for c in f.conflicts] == [("C-001", 1), ("C-002", 2), ("C-003", 3), ("C-004", 4)]
+    assert f.approval.status == "partially_signed"
+    assert f.approval.unsigned == ["activity_manager", "rca_primary", "rca_authorisation_form3"]
+    assert {s.role: s.status for s in f.signoffs}["rca_other"] == "not_applicable"
+    assert [s.tmd_id for s in f.tmd_sheets] == ["TMD-01", "TMD-02", "TMD-03", "TMD-04", "TMD-05"]
+    assert f.coverage["complete"]
+    out = result.out_dir
+    assert json.loads((out / "facts.json").read_text())["approval"]["status"] == "partially_signed"
+    assert json.loads((out / "review.json").read_text())["items"]
+    assert "## Facts and checks" in (out / "report.md").read_text()
+

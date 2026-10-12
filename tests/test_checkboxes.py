@@ -1,6 +1,7 @@
 """Checkbox pairing, one test per layout in the plan's table (section 2.4). Stores are built by hand, so the
 tests state exactly which text sits where, with no PDF or font involved."""
 from helpers import add_block, add_box, line, run_handler, store_with_page
+from tmp_pipeline.catalog import load_catalog
 from tmp_pipeline.handlers.checkboxes import NOT_TICKED, CheckboxHandler
 
 
@@ -134,4 +135,4 @@ def test_box_ids_pages_and_stamp_are_recorded():
     add_box(s, 146, 388, True, page=2)
     r = only(run(s))
     assert r.page == 2 and r.produced_by.handler == "CheckboxHandler" and r.produced_by.config_hash
-    assert r.produced_by.catalog_version == "0.1.0" and r.record_id == "r2:checkbox:0"
+    assert r.produced_by.catalog_version == load_catalog().version and r.record_id == "r2:checkbox:0"

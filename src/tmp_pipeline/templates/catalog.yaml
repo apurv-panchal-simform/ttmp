@@ -1,8 +1,8 @@
-# Schema catalog (plan section 3.1), minimal Phase 2 version: only the entities and sections the Phase 2
-# handlers read. Code uses synonyms and units; prompts use descriptions. Adding a field or synonym means
+# Schema catalog (plan section 3.1). `entities` and `sections` are what handlers map names to; `facts_entities`
+# are built by the Phase 4 field mapper only and never take part in name matching or prompts. Code uses synonyms and units; prompts use descriptions. Adding a field or synonym means
 # editing this file, never a prompt. Field types: text, integer, number, percent, date, time, rp, speed,
 # distance, duration, bool. A field with `critical: true` is judged (X6) before it can be `verified`.
-version: "0.1.0"
+version: "0.2.0"
 
 entities:
   road:
@@ -21,6 +21,7 @@ entities:
 
   work_period:
     description: "Operating hours and dates of the work or stage"
+    one_per_document: true
     fields:
       start_date:   {type: date,     desc: "Work or stage start date", synonyms: ["work/stage start date", "ttm start date", "start date"]}
       start_time:   {type: time,     desc: "Start time", critical: true, synonyms: ["start time", "ttm start time"]}
@@ -37,6 +38,7 @@ entities:
       tc_in:         {type: time, desc: "Traffic control in", critical: true, synonyms: ["traffic control in"]}
       pick_up:       {type: time, desc: "Commence pick up", critical: true, synonyms: ["commence pick up"]}
       site_cleared:  {type: time, desc: "Site cleared", critical: true, synonyms: ["site cleared"]}
+      day_type:      {type: text, desc: "Day type the times apply to (school days, school holidays, weekends)"}
 
   road_geometry:
     description: "Measured road characteristics"
@@ -48,6 +50,7 @@ entities:
 
   vulnerable_user:
     description: "Road users and site features ticked on the planning form"
+    one_per_document: true
     fields:
       pedestrians:        {type: bool, desc: "Pedestrians present", synonyms: ["pedestrians"]}
       school_childcare:   {type: bool, desc: "School or childcare nearby", synonyms: ["school &/or childcare", "school and/or childcare"]}
@@ -58,6 +61,7 @@ entities:
 
   road_aspect:
     description: "Other road aspects ticked on the planning form"
+    one_per_document: true
     fields:
       controlled_parking:        {type: bool, desc: "Controlled parking", synonyms: ["controlled parking"]}
       traffic_signals:           {type: bool, desc: "Traffic signals", synonyms: ["traffic signals"]}
@@ -115,4 +119,78 @@ sections:
   location:                    {heading_synonyms: ["worksite location", "location details and road characteristics"], fields: []}
   planning_record:             {heading_synonyms: ["ttm planning meeting record", "ttm forms framework"], fields: []}
 
-required_signoffs: [ttm_designer, design_checker, activity_manager, rca_primary]
+# Phase 4: built by the field mapper from handler records (facts.json); never matched against document names.
+facts_entities:
+  tmp_document:
+    description: "The TMP as a whole"
+    one_per_document: true
+    fields:
+      tmp_reference:   {type: text, critical: true, desc: "TMP reference number, e.g. KTS 26-1581"}
+      order_reference: {type: text, desc: "Client order or job reference"}
+      approval_status: {type: text, desc: "signed, partially_signed or unsigned"}
+  stage:
+    description: "One stage of the works and the diagram it uses"
+    match_key: [tmd_id]
+    fields:
+      tmd_id: {type: text, desc: "Diagram sheet id, e.g. TMD-04"}
+      title:  {type: text, desc: "Stage name as written"}
+      hours:  {type: text, desc: "When the stage is in place (24x7, dayshift)"}
+  speed_limit:
+    description: "A temporary speed limit"
+    match_key: [road_name, rp_from, rp_to]
+    fields:
+      road_name:         {type: text, desc: "Road the limit is on"}
+      speed_kmh:         {type: integer, unit: km/h, critical: true, desc: "Temporary speed limit"}
+      length_m:          {type: distance, unit: m, desc: "Length of the limit"}
+      rp_from:           {type: rp, unit: km, critical: true, desc: "Start route position"}
+      rp_to:             {type: rp, unit: km, critical: true, desc: "End route position"}
+      hours_by_day_type: {type: list, desc: "Hours the limit applies, per day type"}
+      date_from:         {type: date, desc: "First day of the limit"}
+      date_to:           {type: date, desc: "Last day of the limit"}
+      tmd_ids:           {type: list, desc: "Diagram sheets that show the limit"}
+  signoff:
+    description: "One sign-off block"
+    match_key: [role]
+    fields:
+      role:         {type: text, desc: "ttm_designer, design_checker, activity_manager, rca_primary, rca_other, rca_authorisation_form3"}
+      name:         {type: text, desc: "Name of the person signing"}
+      organisation: {type: text, desc: "Organisation and role"}
+      email:        {type: text, desc: "Email"}
+      phone:        {type: text, desc: "Phone"}
+      signature:    {type: text, desc: "Signature as read (typed name); empty when not signed"}
+      date:         {type: text, desc: "Date written in the block"}
+      status:       {type: text, desc: "signed, unsigned or not_applicable"}
+  contact:
+    description: "A person or organisation named with contact details"
+    match_key: [name]
+    fields:
+      name:         {type: text, desc: "Name"}
+      roles:        {type: list, desc: "Roles or labels the contact was given under (a person may hold several)"}
+      organisation: {type: text, desc: "Organisation"}
+      phone:        {type: text, desc: "Phone"}
+      email:        {type: text, desc: "Email"}
+  authorisation:
+    description: "What the road controlling authority is asked to authorise (Form 3)"
+    one_per_document: true
+    fields:
+      items:   {type: list, desc: "Items requested for authorisation"}
+      answers: {type: list, desc: "Yes/no questions on the authorisation form with their answers"}
+
+# record kind -> fact entity: records copied one to one into facts (no merging)
+record_kinds:
+  risk_cell: risk_matrix_cell
+  figure: figure
+  yes_no: form_answer
+  section: section
+
+# canonical diagram title -> other names a document may use for it (matched before X11 is asked)
+diagram_title_synonyms:
+  stop go: ["stop/go", "stop-go", "single lane alternating"]
+  no parking plan: ["parking management", "no parking"]
+
+required_signoffs:
+  - ttm_designer
+  - design_checker
+  - activity_manager
+  - rca_primary
+  - rca_authorisation_form3: {if: tsl_requested}
