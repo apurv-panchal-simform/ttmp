@@ -1,5 +1,5 @@
 """Handlers that only count what they receive. They stand in for routes whose real handler is not built yet
-(FIGURE and DIAGRAM until Phase 3) and let the router be tested without any handler logic."""
+(none after Phase 3) and let the router be tested without any handler logic."""
 from __future__ import annotations
 
 from collections import Counter

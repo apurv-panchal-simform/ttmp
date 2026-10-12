@@ -127,3 +127,75 @@ def test_the_sample_run_meets_the_phase_2_gold_targets(sample_pdf, tmp_path):
                json.loads(GOLD_FILE.read_text(encoding="utf-8")))
     assert sc.passes(), render(sc)
     assert sc.n_fields > 250 and sc.n_records > 80
+
+
+# --- sheet facts (Phase 3) ------------------------------------------------------------------------------------------
+
+def _sheet_record(symbols, legend=(("green", "Work Area"),), notes=("1M minimum lateral safety zone",),
+                  roads=(("Sunrise Avenue", "L1"),)):
+    return Record("diagram_sheet", 23, STAMP, {}, "tmd_sheet", [], data={
+        "legend": [{"swatch": s, "meaning": m} for s, m in legend], "notes": list(notes),
+        "roads": [{"name": n, "level": lv} for n, lv in roads], "symbols": symbols})
+
+
+def _sym(kind, value=None, rp=None, text=""):
+    return {"kind": kind, "value": value, "rp": rp, "text": text}
+
+
+def _sheet_gold(symbols, **kw):
+    sg = {"page": 23, "legend": [["green", "Work Area"]], "notes": ["1M minimum lateral safety zone"],
+          "roads": [["Sunrise Avenue", "L1"]], "symbols": symbols, **kw}
+    return {"expected": [], "sheets": [sg]}
+
+
+def _score_sheet(record, gold_doc):
+    s = store_with_page()
+    rs = RecordStore(s.doc_id)
+    if record is not None:
+        rs.add(record)
+    return score(rs, s, gold_doc)
+
+
+def test_matching_sheet_facts_pass_and_render_their_rows():
+    rec = _sheet_record([_sym("speed_limit", 50), _sym("rp_label", 0.615), _sym("pictogram")])
+    sc = _score_sheet(rec, _sheet_gold([{"kind": "speed_limit", "value": 50}, {"kind": "rp_label", "value": 0.615}]))
+    assert sc.sheet_exact_rate == 1.0 and sc.symbol_recall == 1.0 and sc.symbol_precision == 1.0 and sc.passes()
+    assert "Symbol recall" in render(sc) and "Sheet facts exact" in render(sc)
+
+
+def test_a_wrong_legend_notes_or_roads_list_fails_the_sheet_measure():
+    gold_doc = _sheet_gold([])
+    for kw in ({"legend": (("yellow", "Work Area"),)}, {"notes": ("1M minimum safety zone",)}, {"roads": ()}):
+        sc = _score_sheet(_sheet_record([], **kw), gold_doc)
+        assert sc.sheet_exact_rate < 1.0 and not sc.passes()
+    assert "differs from the gold list" in render(sc)
+
+
+def test_a_missing_symbol_lowers_recall_and_an_extra_one_of_a_gold_kind_lowers_precision():
+    gold_doc = _sheet_gold([{"kind": "speed_limit", "value": 50, "n": 2}])
+    only_one = _score_sheet(_sheet_record([_sym("speed_limit", 50)]), gold_doc)
+    assert only_one.symbol_recall == 0.5 and only_one.symbols_missing and not only_one.passes()
+    extra = _score_sheet(_sheet_record([_sym("speed_limit", 50), _sym("speed_limit", 50), _sym("speed_limit", 30)]), gold_doc)
+    assert extra.symbol_recall == 1.0 and extra.symbol_precision == pytest.approx(2 / 3) and extra.symbols_extra
+    other_kind = _score_sheet(_sheet_record([_sym("speed_limit", 50), _sym("speed_limit", 50), _sym("pictogram")]), gold_doc)
+    assert other_kind.symbol_precision == 1.0                  # kinds the gold does not list are not judged
+
+
+def test_specific_specs_claim_symbols_before_general_ones():
+    rec = _sheet_record([_sym("temporary_speed_limit", 30, 0.615), _sym("temporary_speed_limit", 30)])
+    gold_doc = _sheet_gold([{"kind": "temporary_speed_limit", "value": 30, "n": 1},
+                            {"kind": "temporary_speed_limit", "value": 30, "rp": 0.615}])
+    assert _score_sheet(rec, gold_doc).symbol_recall == 1.0
+    wrong_rp = _score_sheet(_sheet_record([_sym("temporary_speed_limit", 30, 0.5)]),
+                            _sheet_gold([{"kind": "temporary_speed_limit", "value": 30, "rp": 0.615}]))
+    assert wrong_rp.symbol_recall == 0.0
+
+
+def test_a_missing_sheet_record_fails_every_sheet_measure_and_counts_its_symbols_as_missing():
+    sc = _score_sheet(None, _sheet_gold([{"kind": "speed_limit", "value": 50}]))
+    assert sc.sheet_exact_rate == 0.0 and sc.symbol_recall == 0.0 and sc.symbols_missing and not sc.passes()
+
+
+def test_symbol_text_matches_ignoring_spacing_and_case():
+    rec = _sheet_record([_sym("end_of_works_sign", text="W O RK SE ND")])
+    assert _score_sheet(rec, _sheet_gold([{"kind": "end_of_works_sign", "text": "works end"}])).symbol_recall == 1.0

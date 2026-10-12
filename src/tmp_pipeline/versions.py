@@ -2,7 +2,7 @@
 
 VERSIONS = {
     "extractor": "0.1.0",
-    "router": "1.0.0",
+    "router": "1.1.0",
     "catalog": "0.0.0",
     "prompt": "0.0.0",
     "model": "none",

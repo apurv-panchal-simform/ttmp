@@ -106,3 +106,22 @@ def test_big_image_with_overlay_paths_and_no_header_is_diagram(make_pdf):
     assert s.pages[1].zone == "diagram"
     (sheet,) = s.of_type("diagram_sheet")
     assert sheet.zone == "diagram" and {e.zone for e in s.elements.values()} == {"diagram"}
+
+
+def test_a_flattened_sheet_with_a_sheet_no_title_block_is_still_a_diagram(make_pdf):
+    from helpers import sheet_page
+    pdf = make_pdf("flat.pdf", [lambda c, w, h: sheet_page(c, w, h, filler=0, notes=False, legend=False)])
+    store = zones_of(pdf)
+    info = store.pages[1]
+    assert info.zone == "diagram" and "flattened" in info.zone_reason and info.n_paths < CFG.zones.diagram_min_paths
+
+
+def test_a_big_image_with_few_paths_and_no_sheet_no_is_not_a_diagram(make_pdf):
+    from reportlab.lib.utils import ImageReader
+
+    from helpers import noise_image
+
+    def page(c, w, h):
+        c.drawImage(ImageReader(noise_image(1)), 14, 96, w - 28, h - 110)
+    store = zones_of(make_pdf("photo.pdf", [page]))
+    assert store.pages[1].zone != "diagram"

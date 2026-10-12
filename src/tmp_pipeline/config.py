@@ -142,6 +142,34 @@ class FiguresCfg:
 
 
 @dataclass(frozen=True)
+class DiagramsCfg:
+    enabled: bool
+    touch_overlap: float       # two drawn objects belong to one symbol when this share of the smaller lies inside the other
+    area_min_pt2: float        # a filled shape larger than this (pt squared) is an area, never part of a sign
+    cone_run_gap_pt: float     # consecutive cones closer than this form one run
+    fragment_max_pt2: float    # drawn pieces smaller than this (pt squared) that touch merge into one icon
+    fragment_gap_pt: float     # ...when no further apart than this
+    line_turn_deg: float       # a glyph continues a text line when its direction is within this of the line's
+    line_max_gap_em: float     # ...and its origin is no further than this x font size from the last glyph
+    tile_cols: int             # no-vector fallback: the plan is read in this many tile columns...
+    tile_rows: int             # ...and rows
+    tile_overlap_pt: float     # tiles overlap by this much so nothing is cut in half
+    near_dup_bits: int         # pictures whose 64-bit hashes differ by at most this many bits are the same picture
+    rp_assoc_max_pt: float     # an RP label belongs to the nearest sign if that sign is within this
+    plate_assoc_max_pt: float  # a TEMPORARY plate claims the nearest speed disc within this
+    dimension_assoc_max_pt: float  # a dimension label belongs to a dimension line it lies within this of
+    title_block_max_share: float   # the title block frame covers less than this share of the page
+    notes_bullet: re.Pattern[str]
+    legend_title: re.Pattern[str]
+    notes_title: re.Pattern[str]
+    callout_min_words: int     # a framed text with at least this many words is an instruction callout
+    patterns: dict[str, re.Pattern[str]]       # label shapes, matched on upper-case text without spaces
+    sign_text: dict[str, re.Pattern[str]]      # sign kind -> text cue, first match wins
+    title_labels: dict[str, re.Pattern[str]]   # title block field -> its printed label
+    area_meanings: dict[str, str]              # legend meaning (lower case) -> area kind
+
+
+@dataclass(frozen=True)
 class Config:
     page: PageCfg
     intake: IntakeCfg
@@ -154,6 +182,7 @@ class Config:
     furniture: FurnitureCfg
     zones: ZonesCfg
     figures: FiguresCfg
+    diagrams: DiagramsCfg
     template: str = "default"
     sha: str = ""              # hash of the merged raw config, stamped on every run and record
 
@@ -172,6 +201,10 @@ def _merge(base: dict, over: dict) -> dict:
 
 def _coerce(value: Any, tp: Any, path: str, flags: int = 0) -> Any:
     origin = typing.get_origin(tp)
+    if tp is bool:
+        if not isinstance(value, bool):
+            raise ConfigError(f"{path}: expected true or false, got {value!r}")
+        return value
     if tp is float:
         if isinstance(value, bool) or not isinstance(value, int | float):
             raise ConfigError(f"{path}: expected a number, got {value!r}")
@@ -242,6 +275,12 @@ def _validate(c: Config) -> None:
     check(0 <= c.quality.low_threshold <= 1, "quality.low_threshold: must be in [0, 1]")
     check(0 <= c.intake.scanned_share <= 1, "intake.scanned_share: must be in [0, 1]")
     check(c.ticks.square_min_pt < c.ticks.square_max_pt, "ticks: square_min_pt must be below square_max_pt")
+    d = c.diagrams
+    check(0 < d.touch_overlap <= 1, "diagrams.touch_overlap: must be in (0, 1]")
+    check(0 < d.title_block_max_share <= 1, "diagrams.title_block_max_share: must be in (0, 1]")
+    check(0 <= d.near_dup_bits < 64, "diagrams.near_dup_bits: must be in [0, 64)")
+    for key in ("rp_label", "dimension_label", "road_label", "house_label", "speed_value", "controller"):
+        check(key in d.patterns, f"diagrams.patterns: missing {key!r}")
     check(c.figures.decorative_max_area <= c.figures.informative_min_area,
           "figures: decorative_max_area must not exceed informative_min_area")
     for i, rgb in enumerate(c.zones.rating_colours):

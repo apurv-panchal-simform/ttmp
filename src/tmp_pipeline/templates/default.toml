@@ -94,3 +94,57 @@ informative_min_area = 0.05  # larger than this share = informative; in between 
 repeat_iou = 0.9             # same spot on most pages (IoU above this) = decorative
 repeat_min_pages = 3         # a figure cannot "repeat" in a document shorter than this
 repeat_page_share = 0.5      # a figure repeats when it sits in the same spot on more than this share of pages
+
+[diagrams]
+enabled = true
+touch_overlap = 0.5          # two drawn objects belong to one symbol when this share of the smaller lies inside the other
+area_min_pt2 = 4000.0        # a filled shape larger than this (pt squared) is an area, never part of a sign
+cone_run_gap_pt = 16.0       # consecutive cones closer than this form one run
+fragment_max_pt2 = 300.0     # drawn pieces smaller than this (pt squared) that touch merge into one icon
+fragment_gap_pt = 3.0        # ...when no further apart than this
+line_turn_deg = 20.0         # a glyph continues a text line when its direction is within this of the line's
+line_max_gap_em = 2.5        # ...and its origin is no further than this x font size from the last glyph
+tile_cols = 2               # no-vector fallback: the plan is read in this many tile columns...
+tile_rows = 2               # ...and rows
+tile_overlap_pt = 20.0       # tiles overlap by this much so nothing is cut in half
+near_dup_bits = 6            # pictures whose 64-bit hashes differ by at most this many bits are the same picture
+rp_assoc_max_pt = 45.0       # an RP label belongs to the nearest sign if that sign is within this
+plate_assoc_max_pt = 40.0    # a TEMPORARY plate claims the nearest speed disc within this
+dimension_assoc_max_pt = 12.0  # a dimension label belongs to a dimension line it lies within this of
+title_block_max_share = 0.25   # the title block frame covers less than this share of the page
+notes_bullet = '^[\u25ba\u25b6\u2022\-*]'
+legend_title = '(?i)^\s*LEGEND\s*$'
+notes_title = '(?i)^\s*NOTES\s*:?\s*$'
+callout_min_words = 6        # a framed text with at least this many words is an instruction callout
+
+[diagrams.patterns]          # label shapes, matched on upper-case text without spaces
+rp_label = '^RP(\d+\.\d+)$'
+dimension_label = '^(\d+(?:\.\d+)?)M$'
+road_label = '^(.+?)-(L\d+|LV)$'
+house_label = '^#\d+[A-Z]?$'
+speed_value = '^\d{2,3}$'
+controller = '^STOPGO$'
+
+[diagrams.sign_text]         # sign kind -> text cue, first match wins
+speed_ahead_sign = 'KM/H.*AHEAD|AHEAD.*KM/H'
+school_zone = 'SCHOOLZONE'
+advance_sign = 'BUSSTOP.*AHEAD|AHEAD.*BUSSTOP|\d+M.*AHEAD'
+end_of_works_sign = 'WORKS?END'
+supplementary_plate = '^TEMPORARY$'
+bus_stop_sign = 'BUSSTOP'
+warning_sign = 'ONSIDEROAD|PLEASESTOP|ROADWORKS|CAUTION'
+
+[diagrams.title_labels]      # title block field -> its printed label, matched on upper-case text without spaces
+sheet = '^SHEETNO:?$'
+rev = '^REVNO:?$'
+date = '^DATE:?$'
+scale = '^SCALE:?$'
+tmp_number = '^TMPNUMBER:?$'
+drawn_by = '^DRAWN&?CHECKEDBY:?$'
+project = '^PROJECTDESCRIPTION:?$'
+prepared_for = '^PREPAREDFOR'
+originator = '^DRAWINGORIGINATOR:?$'
+
+[diagrams.area_meanings]     # legend meaning (lower case) -> area kind
+"work area" = "work_area"
+"safety zone" = "safety_zone"

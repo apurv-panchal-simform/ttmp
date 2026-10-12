@@ -4,7 +4,8 @@
  "mode": "model off (no X2/X4/X5/X6 calls): critical facts that nothing judged are expected unverified",
  "notes": [
   "Matrix and register ratings are what the printed matrix shows. Cell (likelihood 4, impact 4) = 16 prints orange (High); the plan text says red.",
-  "rating_mismatch rows are those whose stated rating differs from the matrix cell at (likelihood, impact)."
+  "rating_mismatch rows are those whose stated rating differs from the matrix cell at (likelihood, impact).",
+  "Sheets: legend, notes and roads are what the vectors draw; symbol specs were checked against the page renders by the extractor's author. Sheet 02's notes say 10M taper length, sheets 03 and 04 say 30M. The Pram Ramp swatch is read as grey hatched from the vectors; the render shows yellow."
  ],
  "expected": [
   {
@@ -1289,6 +1290,623 @@
    },
    "fields": {},
    "applicability": "not_applicable"
+  },
+  {
+   "id": "sheet01",
+   "kind": "diagram_sheet",
+   "page": 20,
+   "match": {
+    "data.tmd_id": "TMD-01"
+   },
+   "entity": "tmd_sheet",
+   "fields": {
+    "tmd_id": "TMD-01",
+    "sheet": "01",
+    "title": "NO PARKING PLAN",
+    "rev": "00",
+    "date": "2026-09-16",
+    "tmp_number": "KTS 26-1581"
+   }
+  },
+  {
+   "id": "sheet02",
+   "kind": "diagram_sheet",
+   "page": 21,
+   "match": {
+    "data.tmd_id": "TMD-02"
+   },
+   "entity": "tmd_sheet",
+   "fields": {
+    "tmd_id": "TMD-02",
+    "sheet": "02",
+    "title": "SHOULDER CLOSURE",
+    "rev": "00",
+    "date": "2026-09-16",
+    "tmp_number": "KTS 26-1581"
+   }
+  },
+  {
+   "id": "sheet03",
+   "kind": "diagram_sheet",
+   "page": 22,
+   "match": {
+    "data.tmd_id": "TMD-03"
+   },
+   "entity": "tmd_sheet",
+   "fields": {
+    "tmd_id": "TMD-03",
+    "sheet": "03",
+    "title": "LANE DIVERSION",
+    "rev": "00",
+    "date": "2026-09-16",
+    "tmp_number": "KTS 26-1581"
+   }
+  },
+  {
+   "id": "sheet04",
+   "kind": "diagram_sheet",
+   "page": 23,
+   "match": {
+    "data.tmd_id": "TMD-04"
+   },
+   "entity": "tmd_sheet",
+   "fields": {
+    "tmd_id": "TMD-04",
+    "sheet": "04",
+    "title": "STOP GO",
+    "rev": "00",
+    "date": "2026-09-16",
+    "tmp_number": "KTS 26-1581"
+   }
+  },
+  {
+   "id": "sheet05",
+   "kind": "diagram_sheet",
+   "page": 24,
+   "match": {
+    "data.tmd_id": "TMD-05"
+   },
+   "entity": "tmd_sheet",
+   "fields": {
+    "tmd_id": "TMD-05",
+    "sheet": "05",
+    "title": "UNATTENDED WORKSITE",
+    "rev": "00",
+    "date": "2026-09-16",
+    "tmp_number": "KTS 26-1581"
+   }
+  }
+ ],
+ "sheets": [
+  {
+   "page": 20,
+   "legend": [],
+   "notes": [
+    "\"No parking\" signs and cones are to be installed along the work area and at House No. 33 Sunrise Avenue for the Temporary Bus Stop.",
+    "Cones will be installed at 5 m centres to deter parking in the no parking area.",
+    "Residents are to be advised of the proposed no parking area.",
+    "Where there is a vehicle within the no parking area, the contractor will door-knock to contact the vehicle owner.",
+    "No parking signs are to be installed 24 hours prior to the attended"
+   ],
+   "roads": [
+    [
+     "Gull Lane",
+     "LV"
+    ],
+    [
+     "Sunrise Avenue",
+     "L1"
+    ]
+   ],
+   "symbols": [
+    {
+     "kind": "road_label",
+     "value": "GULL LANE"
+    },
+    {
+     "kind": "road_label",
+     "value": "SUNRISE AVENUE",
+     "n": 2
+    },
+    {
+     "kind": "house_label",
+     "value": "55"
+    },
+    {
+     "kind": "house_label",
+     "value": "33"
+    }
+   ]
+  },
+  {
+   "page": 21,
+   "legend": [
+    [
+     "green",
+     "Work Area"
+    ],
+    [
+     "yellow",
+     "Safety Zone"
+    ],
+    [
+     "orange",
+     "Cone"
+    ],
+    [
+     "black",
+     "Pedestrian fence"
+    ],
+    [
+     "blue dashed",
+     "Pedestrian Route"
+    ],
+    [
+     "grey hatched",
+     "Temporary Pram Ramp"
+    ]
+   ],
+   "notes": [
+    "1M minimum lateral safety zone",
+    "10M Longitudinal safety zone and 10M taper length",
+    "All cones in taper at 2.5M spacings",
+    "All cones elsewhere at 5M spacings",
+    "Minimum live lane width to be maintained.",
+    "Maintain safe driveway/property access where practicable.",
+    "Conflicting permanent signs to be covered where required.",
+    "Suitable gaps to be maintained in the cones for Driveways"
+   ],
+   "roads": [
+    [
+     "Gull Lane",
+     "LV"
+    ],
+    [
+     "Sunrise Avenue",
+     "L1"
+    ]
+   ],
+   "symbols": [
+    {
+     "kind": "road_label",
+     "value": "GULL LANE"
+    },
+    {
+     "kind": "warning_sign",
+     "text": "SHOULDER CLOSED",
+     "rp": 0.625
+    },
+    {
+     "kind": "end_of_works_sign",
+     "text": "WORKS END",
+     "rp": 0.495
+    },
+    {
+     "kind": "dimension_label",
+     "value": 10,
+     "n": 2
+    },
+    {
+     "kind": "dimension_label",
+     "value": 25,
+     "n": 3
+    },
+    {
+     "kind": "dimension_label",
+     "value": 35
+    },
+    {
+     "kind": "house_label",
+     "value": "55"
+    },
+    {
+     "kind": "road_label",
+     "value": "SUNRISE AVENUE",
+     "n": 2
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.625
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.495
+    },
+    {
+     "kind": "advance_sign",
+     "value": 250
+    },
+    {
+     "kind": "house_label",
+     "value": "33"
+    }
+   ]
+  },
+  {
+   "page": 22,
+   "legend": [
+    [
+     "green",
+     "Work Area"
+    ],
+    [
+     "yellow",
+     "Safety Zone"
+    ],
+    [
+     "orange",
+     "Cone"
+    ],
+    [
+     "black",
+     "Pedestrian fence"
+    ],
+    [
+     "blue dashed",
+     "Pedestrian Route"
+    ],
+    [
+     "grey hatched",
+     "Temporary Pram Ramp"
+    ]
+   ],
+   "notes": [
+    "1M minimum lateral safety zone",
+    "10M Longitudinal safety zone and 30M taper length",
+    "All cones in taper at 2.5M spacings",
+    "All cones elsewhere at 5M spacings",
+    "Minimum live lane width to be maintained.",
+    "Maintain safe driveway/property access where practicable.",
+    "Conflicting permanent signs to be covered where required.",
+    "Suitable gaps to be maintained in the cones for Driveways"
+   ],
+   "roads": [
+    [
+     "Gull Lane",
+     "LV"
+    ],
+    [
+     "Sunrise Avenue",
+     "L1"
+    ]
+   ],
+   "symbols": [
+    {
+     "kind": "speed_limit",
+     "value": 50,
+     "n": 5
+    },
+    {
+     "kind": "school_zone",
+     "text": "SCHOOL ZONE 40 8:10 - 8:45 AM 3:00 - 3:20 PM SCHOOL DAYS COVER"
+    },
+    {
+     "kind": "dimension_label",
+     "value": 25,
+     "n": 2
+    },
+    {
+     "kind": "temporary_speed_limit",
+     "value": 30,
+     "n": 2
+    },
+    {
+     "kind": "temporary_speed_limit",
+     "value": 30,
+     "rp": 0.615
+    },
+    {
+     "kind": "speed_ahead_sign",
+     "value": 30,
+     "rp": 0.655
+    },
+    {
+     "kind": "end_of_works_sign",
+     "text": "WORKS END",
+     "n": 2
+    },
+    {
+     "kind": "temporary_speed_limit",
+     "value": 30,
+     "rp": 0.465
+    },
+    {
+     "kind": "speed_ahead_sign",
+     "value": 30,
+     "rp": 0.44
+    },
+    {
+     "kind": "road_label",
+     "value": "SUNRISE AVENUE",
+     "n": 3
+    },
+    {
+     "kind": "road_label",
+     "value": "GULL LANE"
+    },
+    {
+     "kind": "dimension_label",
+     "value": 15
+    },
+    {
+     "kind": "warning_sign",
+     "text": "ON SIDE ROAD",
+     "rp": 0.015
+    },
+    {
+     "kind": "end_of_works_sign",
+     "text": "W O RK SE ND"
+    },
+    {
+     "kind": "dimension_label",
+     "value": 40,
+     "n": 2
+    },
+    {
+     "kind": "dimension_label",
+     "value": 30,
+     "n": 2
+    },
+    {
+     "kind": "dimension_label",
+     "value": 10
+    },
+    {
+     "kind": "dimension_label",
+     "value": 35
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.655
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.615
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.015
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.465
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.44
+    },
+    {
+     "kind": "house_label",
+     "value": "55"
+    },
+    {
+     "kind": "advance_sign",
+     "value": 250
+    },
+    {
+     "kind": "house_label",
+     "value": "33"
+    }
+   ]
+  },
+  {
+   "page": 23,
+   "legend": [
+    [
+     "green",
+     "Work Area"
+    ],
+    [
+     "yellow",
+     "Safety Zone"
+    ],
+    [
+     "orange",
+     "Cone"
+    ],
+    [
+     "black",
+     "Pedestrian fence"
+    ],
+    [
+     "blue dashed",
+     "Pedestrian Route"
+    ],
+    [
+     "grey hatched",
+     "Temporary Pram Ramp"
+    ]
+   ],
+   "notes": [
+    "1M minimum lateral safety zone",
+    "10M Longitudinal safety zone and 30M taper length",
+    "All cones in taper at 2.5M spacings",
+    "All cones elsewhere at 5M spacings",
+    "Threshold must be 2.5 m centres for speeds under 65 km/h",
+    "Minimum live lane width to be maintained.",
+    "Maintain safe driveway/property access where practicable.",
+    "Conflicting permanent signs to be covered where required.",
+    "Suitable gaps to be maintained in the cones for Driveways"
+   ],
+   "roads": [
+    [
+     "Gull Lane",
+     "LV"
+    ],
+    [
+     "Sunrise Avenue",
+     "L1"
+    ]
+   ],
+   "symbols": [
+    {
+     "kind": "speed_limit",
+     "value": 50,
+     "n": 5
+    },
+    {
+     "kind": "school_zone",
+     "text": "SCHOOL ZONE 40 8:10 - 8:45 AM 3:00 - 3:20 PM SCHOOL DAYS COVER"
+    },
+    {
+     "kind": "warning_sign",
+     "text": "PLEASE STOP ON REQUEST",
+     "n": 3
+    },
+    {
+     "kind": "dimension_label",
+     "value": 25,
+     "n": 3
+    },
+    {
+     "kind": "temporary_speed_limit",
+     "value": 30,
+     "n": 2
+    },
+    {
+     "kind": "temporary_speed_limit",
+     "value": 30,
+     "rp": 0.615
+    },
+    {
+     "kind": "end_of_works_sign",
+     "text": "WORKS END",
+     "n": 2
+    },
+    {
+     "kind": "temporary_speed_limit",
+     "value": 30,
+     "rp": 0.465
+    },
+    {
+     "kind": "speed_ahead_sign",
+     "value": 30,
+     "rp": 0.41
+    },
+    {
+     "kind": "road_label",
+     "value": "SUNRISE AVENUE",
+     "n": 3
+    },
+    {
+     "kind": "road_label",
+     "value": "GULL LANE"
+    },
+    {
+     "kind": "dimension_label",
+     "value": 15,
+     "n": 2
+    },
+    {
+     "kind": "warning_sign",
+     "text": "ON SIDE ROAD",
+     "rp": 0.03
+    },
+    {
+     "kind": "end_of_works_sign",
+     "text": "W O RK SE ND"
+    },
+    {
+     "kind": "dimension_label",
+     "value": 40,
+     "n": 2
+    },
+    {
+     "kind": "dimension_label",
+     "value": 30,
+     "n": 3
+    },
+    {
+     "kind": "dimension_label",
+     "value": 10
+    },
+    {
+     "kind": "dimension_label",
+     "value": 35
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.68
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.615
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.03
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.465
+    },
+    {
+     "kind": "rp_label",
+     "value": 0.41
+    },
+    {
+     "kind": "house_label",
+     "value": "55"
+    },
+    {
+     "kind": "advance_sign",
+     "value": 250
+    },
+    {
+     "kind": "speed_ahead_sign",
+     "value": 30,
+     "rp": 0.68
+    },
+    {
+     "kind": "traffic_controller",
+     "n": 2
+    },
+    {
+     "kind": "house_label",
+     "value": "33"
+    }
+   ]
+  },
+  {
+   "page": 24,
+   "legend": [
+    [
+     "blue",
+     "Unattended Work Area"
+    ]
+   ],
+   "notes": [
+    "When using steel plates, they must:",
+    "Remain in place for no more than 7 days or else RCA/Corridor Manager will be notified if extension is needed",
+    "Be securely fixed to prevent displacement.",
+    "Be skid-resistant, properly secured, and cushioned to prevent movement, rocking, or noise.",
+    "Be strong and durable enough to withstand expected traffic loads.",
+    "Have properly formed and filleted ramps to ensure safe access for both pedestrians and vehicles."
+   ],
+   "roads": [
+    [
+     "Gull Lane",
+     "LV"
+    ],
+    [
+     "Sunrise Avenue",
+     "L1"
+    ]
+   ],
+   "symbols": [
+    {
+     "kind": "road_label",
+     "value": "GULL LANE"
+    },
+    {
+     "kind": "road_label",
+     "value": "SUNRISE AVENUE"
+    },
+    {
+     "kind": "house_label",
+     "value": "55"
+    }
+   ]
   }
  ]
 }

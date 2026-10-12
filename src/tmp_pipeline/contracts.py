@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from .catalog import Catalog, load_catalog
@@ -17,7 +18,8 @@ from .models import Element, ElementStore
 from .records import Record, RecordStore, Stamp
 from .vocab import Flag, Outcome, Route
 
-if TYPE_CHECKING:                       # the model layer arrives in A8; handlers never import a concrete client
+if TYPE_CHECKING:                       # handlers never import a concrete client or the diagram reader
+    from .diagrams.models import SheetStore
     from .model.client import ModelClient
 
 
@@ -29,6 +31,8 @@ class HandlerContext:
     versions: dict[str, str]
     model: ModelClient | None = None
     catalog: Catalog = field(default_factory=load_catalog)
+    sheets: SheetStore | None = None       # diagram sheets read by the pre-router diagram stage
+    out_dir: Path | None = None            # where masters and overlay renders were written (for image prompts)
 
     def stamp(self, handler: Handler | BaseHandler, prompts: dict[str, str] | None = None,
               model_name: str = "none") -> Stamp:

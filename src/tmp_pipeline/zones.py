@@ -65,7 +65,9 @@ def page_signals(store: ElementStore, page: int, cfg: Config) -> PageSignals:
 
 def page_default(sig: PageSignals, cfg: Config) -> tuple[str, str]:
     z = cfg.zones
-    if sig.image_cover > z.diagram_image_cover and sig.n_paths >= z.diagram_min_paths and not sig.header_band:
+    if sig.image_cover > z.diagram_image_cover and not sig.header_band and (sig.n_paths >= z.diagram_min_paths or sig.sheet_no):
+        if sig.n_paths < z.diagram_min_paths:        # a flattened sheet: the drawing is pixels, only the title block is text
+            return "diagram", f"image covers {sig.image_cover:.0%} of the page with a SHEET NO title block and only {sig.n_paths} vector paths (flattened)"
         why = f"image covers {sig.image_cover:.0%} of the page with {sig.n_paths} vector paths"
         return "diagram", why + (" and a SHEET NO title block" if sig.sheet_no else "")
     if (sig.header_band or sig.form_name) and not sig.body_content:

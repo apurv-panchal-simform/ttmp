@@ -141,3 +141,209 @@ def check_x3(result: dict | None, pdf_text_in_cell: str) -> tuple[str | None, li
     if pdf and pdf.lower() != value.lower() and value.lower() not in pdf.lower():
         return value, ["the read value does not match the PDF text inside the cell"]
     return value, []
+
+
+# --- images and diagrams (plan sections 2.6 and 2.7) ----------------------------------------------------------------
+# A vision model reads pixels; code decides what may be trusted. Every number a model reports must be cited to OCR
+# words (or PDF text lines) that exist, hold that number, and sit together; a statement about a diagram must cite
+# symbols that exist and use only numbers the sheet's own extraction contains.
+
+NEAR_PT = 80.0                         # cited words further apart than this do not describe one thing
+_NUM = re.compile(r"(?<![\d.])\d+(?:\.\d+)?")
+
+
+@dataclass
+class Word:
+    """A word or line with an id the model can cite: a DI word, or a line of the PDF text layer."""
+    id: str
+    text: str
+    bbox: list[float]
+
+
+@dataclass
+class ItemCheck:
+    what: str                          # label | number | sign | distance | rp | ...
+    value: object
+    ok: bool
+    problems: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ImageCheck:
+    items: list[ItemCheck] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems and all(i.ok for i in self.items)
+
+
+def _numbers(text: str) -> set[float]:
+    return {float(m) for m in _NUM.findall(text.replace(",", ""))}
+
+
+def _norm(text: str) -> str:
+    return "".join(str(text).split()).lower()
+
+
+def _gap(a: list[float], b: list[float]) -> float:
+    dx = max(0.0, max(a[0], b[0]) - min(a[2], b[2]))
+    dy = max(0.0, max(a[1], b[1]) - min(a[3], b[3]))
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def _cited(ids: object, words: dict[str, Word]) -> tuple[list[Word], list[str]]:
+    problems: list[str] = []
+    if not isinstance(ids, list):
+        return [], ["ocr_ids is not a list"]
+    got = []
+    for i in ids:
+        w = words.get(str(i))
+        if w is None:
+            problems.append(f"cited word {i!r} does not exist")
+        else:
+            got.append(w)
+    for a in got:
+        if any(_gap(a.bbox, b.bbox) > NEAR_PT for b in got):
+            problems.append("cited words are not next to each other")
+            break
+    return got, problems
+
+
+def _holds_number(value: object, cited: list[Word]) -> bool:
+    try:
+        v = float(value)                                    # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return _norm(str(value)) in _norm(" ".join(w.text for w in cited))
+    return any(v in _numbers(w.text) for w in cited)
+
+
+def check_item(what: str, value: object, ids: object, words: dict[str, Word], pdf_text: str = "",
+               is_number: bool = True) -> ItemCheck:
+    """One reported value: its cited words exist, are together, hold the value, and agree with real PDF text."""
+    cited, problems = _cited(ids, words)
+    if not cited and not problems:
+        in_pdf = bool(pdf_text) and (_holds_number(value, [Word("", pdf_text, [0, 0, 0, 0])]) if is_number
+                                      else _norm(str(value)) in _norm(pdf_text))
+        if not in_pdf:
+            problems.append("not in the OCR word list: read from pixels only")
+    elif cited:
+        holds = _holds_number(value, cited) if is_number else _norm(str(value)) in _norm(" ".join(w.text for w in cited))
+        if not holds:
+            problems.append("the cited words do not hold this value")
+    if pdf_text and is_number and not _holds_number(value, [Word("", pdf_text, [0, 0, 0, 0])]) and not problems:
+        problems.append("the value is not in the PDF text inside the image")
+    return ItemCheck(what, value, not problems, problems)
+
+
+def check_x7(result: dict | None, words: dict[str, Word], pdf_text_in_crop: str = "") -> ImageCheck:
+    """Check an X7 reading: labels and numbers must be grounded in cited words; a description is required."""
+    chk = ImageCheck()
+    if not isinstance(result, dict):
+        chk.problems.append("no usable answer")
+        return chk
+    if not str(result.get("description") or "").strip():
+        chk.problems.append("no description")
+    for lab in result.get("labels") or []:
+        if isinstance(lab, dict):
+            chk.items.append(check_item("label", lab.get("text"), lab.get("ocr_ids", []), words, pdf_text_in_crop, False))
+    for num in result.get("numbers") or []:
+        if isinstance(num, dict):
+            chk.items.append(check_item("number", num.get("value"), num.get("ocr_ids", []), words, pdf_text_in_crop))
+    return chk
+
+
+def check_x9(result: dict | None, words: dict[str, Word]) -> ImageCheck:
+    """Check an X9 region reading: every number-bearing item must cite words that exist and hold it."""
+    chk = ImageCheck()
+    if not isinstance(result, dict):
+        chk.problems.append("no usable answer")
+        return chk
+    for key in ("distances", "rps", "cones"):
+        for it in result.get(key) or []:
+            if isinstance(it, dict):
+                chk.items.append(check_item(key, it.get("value", it.get("spacing")), it.get("ocr_ids", []), words))
+    for it in result.get("signs") or []:
+        if isinstance(it, dict) and _numbers(str(it.get("text") or "")):
+            chk.items.append(check_item("signs", it.get("text"), it.get("ocr_ids", []), words, "", False))
+    return chk
+
+
+def x9_key(what: str, value: object) -> tuple[str, str]:
+    """How two X9 reads are compared: numbers as numbers, sign text without spaces or case."""
+    if what == "signs":
+        return what, _norm(str(value))
+    try:
+        return what, f"{float(value):g}"                      # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return what, _norm(str(value))
+
+
+def agree_x9(read1: dict | None, read2: dict | None) -> set[tuple[str, str]]:
+    """The (kind, value) pairs both independent reads reported: only these can be verified."""
+    def pairs(r: dict | None) -> set[tuple[str, str]]:
+        out: set[tuple[str, str]] = set()
+        for key in ("distances", "rps", "cones", "signs"):
+            for it in (r or {}).get(key) or []:
+                if isinstance(it, dict):
+                    out.add(x9_key(key, it.get("text") if key == "signs" else it.get("value", it.get("spacing"))))
+        return out
+    return pairs(read1) & pairs(read2)
+
+
+@dataclass
+class SummaryCheck:
+    verified: bool
+    problems: list[str] = field(default_factory=list)
+    claims: dict[str, list[dict]] = field(default_factory=dict)      # section -> [{"ok", "problems", ...}]
+
+
+def check_x8(result: dict | None, symbols: dict[str, dict], extra_text: str = "") -> SummaryCheck:
+    """An X8 summary may only cite existing symbols and only use numbers the sheet's own extraction contains."""
+    if not isinstance(result, dict):
+        return SummaryCheck(False, ["no usable answer"])
+    allowed: set[float] = _numbers(extra_text)
+    for s in symbols.values():
+        allowed |= _numbers(str(s.get("text") or "")) | _numbers(str(s.get("value") if s.get("value") is not None else ""))
+        if s.get("rp") is not None:
+            allowed.add(float(s["rp"]))
+    out: dict[str, list[dict]] = {"approaches": [], "layout": [], "pedestrians": []}
+    problems: list[str] = []
+
+    def judge(ids: object, text: str) -> list[str]:
+        p: list[str] = []
+        if not isinstance(ids, list) or not ids:
+            p.append("no symbol ids cited")
+        else:
+            p += [f"symbol {i!r} does not exist" for i in ids if str(i) not in symbols]
+        p += [f"number {n:g} is not on the sheet" for n in sorted(_numbers(text) - allowed)]
+        return p
+
+    for a in result.get("approaches") or []:
+        if isinstance(a, dict):
+            p = judge(a.get("signs_in_order"), str(a.get("notes") or ""))
+            out["approaches"].append({"ok": not p, "problems": p, **a})
+    for key in ("layout", "pedestrians"):
+        for c in result.get(key) or []:
+            if isinstance(c, dict):
+                p = judge(c.get("symbol_ids"), str(c.get("statement") or ""))
+                out[key].append({"ok": not p, "problems": p, **c})
+    bad = [c for v in out.values() for c in v if not c["ok"]]
+    if not any(out.values()):
+        problems.append("the summary has no claims")
+    return SummaryCheck(not bad and not problems, problems, out)
+
+
+def check_x10(result: dict | None, symbol_text: str = "") -> tuple[str | None, list[str]]:
+    """(caption, problems): "unclear" or low confidence is never a caption, and digits must come from the symbol."""
+    if not isinstance(result, dict):
+        return None, ["no usable answer"]
+    caption = _squash(str(result.get("caption") or ""))
+    if not caption or caption.lower() == "unclear":
+        return None, ["the model could not identify the symbol"]
+    problems = []
+    if result.get("confidence") not in ("high", "medium"):
+        problems.append("low confidence")
+    if _numbers(caption) - _numbers(symbol_text):
+        problems.append("the caption has a number the symbol does not show")
+    return caption, problems

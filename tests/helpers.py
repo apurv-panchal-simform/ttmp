@@ -99,3 +99,106 @@ def add_table(store, x0, y1, col_w, row_h, rows, *, page=1, zone="risk", header_
                 lns = [line(p, xs[c] + 3, ys[r] - 10 - 9 * k, xs[c + 1] - 3, ys[r] - 2 - 9 * k) for k, p in enumerate(parts)]
                 add_block(store, lns, page=page, parent=table.element_id, zone=zone)
     return table, xs, ys
+
+
+# --- synthetic diagram sheets ---------------------------------------------------------------------------------------
+
+def noise_image(seed: int, size=(160, 100)):
+    """A random picture: different seeds give far-apart perceptual hashes, the same seed the same hash."""
+    import numpy as np
+    from PIL import Image
+    rng = np.random.default_rng(seed)
+    return Image.fromarray(rng.integers(0, 255, (size[1], size[0], 3), dtype="uint8"))
+
+
+def draw_text_along(c, x, y, text, angle_deg, size=7.0):
+    """Draw ``text`` one glyph per text object along a baseline at ``angle_deg``, as the sample's sheets do."""
+    import math
+    ux, uy = math.cos(math.radians(angle_deg)), math.sin(math.radians(angle_deg))
+    c.setFont("Helvetica-Bold", size)
+    for i, ch in enumerate(text):
+        c.saveState()
+        c.translate(x + ux * i * size * 0.62, y + uy * i * size * 0.62)
+        c.rotate(angle_deg)
+        c.drawString(0, 0, ch)
+        c.restoreState()
+
+
+def sheet_page(c, w, h, *, sheet="04", title="STOP GO", aerial_seed=1, extra=None, legend=True, notes=True, filler=20):
+    """A one-page diagram sheet: aerial photo, legend, notes, a title block and whatever ``extra(c, w, h)`` draws."""
+    from reportlab.lib.utils import ImageReader
+    c.drawImage(ImageReader(noise_image(aerial_seed)), 14, 96, w - 28, h - 110)
+    c.setStrokeColorRGB(0, 0, 0)
+    c.setLineWidth(0.5)
+    for i in range(filler):                                  # a vector overlay: enough paths for the diagram zone rule
+        c.line(100 + i * 10, 300, 105 + i * 10, 330)
+    c.setFillColorRGB(1, 1, 1)
+    c.rect(14, 10, w - 28, 87, stroke=1, fill=1)             # title block frame
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica", 6)
+    c.drawString(20, 85, "PREPARED FOR CLIENT/CONTRACTOR:")
+    c.line(700, 55, w - 20, 55)
+    c.rect(700, 14, w - 714, 80, stroke=1, fill=0)
+    c.drawString(705, 85, "TMP NUMBER:")
+    c.drawString(705, 45, "SHEET NO:")
+    c.drawString(765, 45, "REV NO:")
+    c.drawString(708, 70, "KTS 26-1581")
+    c.drawString(715, 28, sheet)
+    c.drawString(775, 28, "00")
+    c.rect(400, 14, 290, 80, stroke=1, fill=0)
+    c.drawString(405, 85, "PROJECT DESCRIPTION:")
+    c.drawString(450, 68, "WATER MAINTENANCE WORK")
+    c.drawString(450, 50, "55 SUNRISE AVENUE, MURRAYS BAY")
+    c.drawString(500, 32, title)
+    if legend:
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(14, h - 130, 100, 112, stroke=1, fill=1)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(48, h - 30, "Legend")
+        for k, (rgb, label) in enumerate([((0, 1, 0), "Work Area"), ((1, 1, 0), "Safety Zone")]):
+            y = h - 50 - k * 14
+            c.setFillColorRGB(*rgb)
+            c.rect(18, y, 10, 10, stroke=0, fill=1)
+            c.setFillColorRGB(0, 0, 0)
+            c.setFont("Helvetica", 7)
+            c.drawString(32, y + 2, label)
+    if notes:
+        c.setFillColorRGB(0.86, 0.86, 0.86)
+        c.rect(560, 102, 250, 100, stroke=1, fill=1)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", 8)
+        c.drawString(566, 190, "NOTES")
+        c.drawString(566, 172, "• 1M minimum lateral safety zone")
+        c.drawString(566, 160, "• 10M Longitudinal safety zone and 30M taper length")
+    if extra:
+        extra(c, w, h)
+
+
+def speed_disc(c, x, y, value, r=12):
+    c.setFillColorRGB(1, 1, 1)
+    c.setStrokeColorRGB(0.75, 0.07, 0.12)
+    c.setLineWidth(4)
+    c.circle(x, y, r, stroke=1, fill=1)
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawCentredString(x, y - 3, str(value))
+
+
+def plate(c, x, y, text, rgb=(0.94, 0.49, 0.13), w=26, h=24):
+    c.setFillColorRGB(*rgb)
+    c.setStrokeColorRGB(0, 0, 0)
+    c.setLineWidth(1)
+    c.rect(x, y, w, h, stroke=1, fill=1)
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica-Bold", 4.5)
+    c.drawCentredString(x + w / 2, y + h / 2 - 2, text)
+
+
+def label(c, x, y, text, w=30, h=9):
+    c.setFillColorRGB(1, 1, 1)
+    c.setStrokeColorRGB(1, 1, 1)
+    c.rect(x, y, w, h, stroke=1, fill=1)
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica", 6)
+    c.drawString(x + 2, y + 2.5, text)

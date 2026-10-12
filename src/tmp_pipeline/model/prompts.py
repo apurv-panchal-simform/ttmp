@@ -6,10 +6,14 @@ import json
 
 from .client import ModelRequest
 
-PROMPT_VERSIONS = {"X2": "1.0", "X3": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0"}
+PROMPT_VERSIONS = {"X2": "1.0", "X3": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0",
+                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0"}
 
 # Deployments named in the plan; change them in one place when the model choice is settled (open decision).
-MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-sol", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol"}
+MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-sol", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
+          "X7": "gpt-6-sol", "X8": "gpt-6-sol", "X9": "gpt-6-sol", "X10": "gpt-6-sol"}
+# The independent second read of an image (failed checks, critical fields): a different model generation (plan 2.6, 2.7).
+READ2_MODEL = "gpt-5.5"
 
 _X2_SYSTEM = """You match the names used in a table from a New Zealand Traffic Management Plan
 to fields in our schema. Tables come from many companies, so the same thing can
@@ -91,8 +95,88 @@ Does the quote state exactly this claim, with this meaning?
 Reply JSON: {{"supported": true/false, "reason": "<one short sentence>"}}"""
 
 
-def _req(pid: str, system: str, user: str, images: tuple[bytes, ...] = ()) -> ModelRequest:
-    return ModelRequest(pid, PROMPT_VERSIONS[pid], MODELS[pid], user, system, images, {"temperature": 0})
+_X7_SYSTEM = """You read an image from a New Zealand Traffic Management Plan.
+Report only what is visible. Never guess, complete or correct text."""
+
+_X7_USER = """[image: the crop]
+Context: section "{section_heading}", nearby text "{nearby_text}", drawn title "{title}"
+OCR words found inside this image (id: text):
+{ocr_words}
+Tasks:
+1. Say what kind of image this is (site plan, aerial photo, map, sign, figure, chart, other).
+2. List every label or note visible, exactly as written, and what it points to.
+3. List every number with its unit, with the OCR word id(s) it comes from.
+   If a number is visible but not in the OCR list, set ocr_ids to [] and say so.
+4. If colours or symbols carry meaning (legend, key, coloured lines), list them.
+   If no key is shown, list the colours used without interpreting them.
+5. Write a 2-4 sentence plain description of what the image shows.
+Reply JSON:
+{{"kind": "...",
+ "labels": [{{"text": "...", "points_to": "...", "ocr_ids": [...]}}],
+ "numbers": [{{"value": ..., "unit": "...", "meaning": "...", "ocr_ids": [...]}}],
+ "legend": [{{"colour_or_symbol": "...", "meaning": "..."}}],
+ "description": "..."}}"""
+
+_X8_SYSTEM = """You read a temporary traffic management diagram (TMD) from a New Zealand TMP.
+The facts have already been extracted from the drawing's vectors and are listed
+below with IDs. Use them; do not invent signs, numbers or RPs."""
+
+_X8_USER = """[image 1: vector overlay only (design without the photo)]
+[image 2: master render (design over the aerial photo)]
+Sheet: {sheet_no} \u00b7 {title}
+Legend: {legend}
+Extracted symbols (id, kind, text/value, RP, road, box): {symbol_list}
+Notes panel: {notes}
+Describe:
+1. For each approach (direction of travel), the signs a driver passes, in order, by symbol ID.
+2. Where the work area, safety zones and traffic controllers are, relative to roads and house numbers.
+3. How pedestrians are managed.
+Every statement must list the symbol IDs it relies on. If something can't be
+determined from the image, say so.
+Reply JSON:
+{{"approaches": [{{"direction": "...", "signs_in_order": ["<symbol_id>"], "notes": "..."}}],
+ "layout": [{{"statement": "...", "symbol_ids": ["..."]}}],
+ "pedestrians": [{{"statement": "...", "symbol_ids": ["..."]}}],
+ "unclear": ["..."]}}"""
+
+_X9_SYSTEM = """You read one region of a temporary traffic management diagram (TMD) from a
+New Zealand TMP. Report only what is visible. Never guess."""
+
+_X9_USER = """[image: the region crop]
+Region type: {region_type} (plan tile, notes, legend, title block)
+Legend for this sheet: {legend}
+OCR words in this region (id: text): {ocr_words}
+Extract:
+- signs: type, text on the sign, which approach it faces, order along that approach
+- distances and lengths with units (taper, safety zones, work area, sign spacing)
+- cone spacing, RPs, controller positions, pedestrian routes, bus stop changes
+- every number must list the OCR word id(s) it comes from
+- anything that fits nowhere goes in "other", exactly as written
+Reply JSON: {tmd_region_schema}"""
+
+TMD_REGION_SCHEMA = (
+    '{"signs": [{"type": "...", "text": "...", "approach": "...", "order": 1, "ocr_ids": []}],'
+    ' "distances": [{"value": 0, "unit": "m", "meaning": "...", "ocr_ids": []}],'
+    ' "rps": [{"value": 0.0, "ocr_ids": []}],'
+    ' "cones": [{"spacing": 0, "unit": "m", "where": "...", "ocr_ids": []}],'
+    ' "controllers": [{"position": "...", "ocr_ids": []}],'
+    ' "pedestrians": [{"statement": "...", "ocr_ids": []}],'
+    ' "other": [{"text": "...", "ocr_ids": []}]}')
+
+_X10_USER = """[image: crop of one symbol from a traffic management diagram]
+Legend for this sheet: {legend}
+Colours in the symbol: {colours}
+In a few words, what is this symbol? (for example "keep-left arrow sign",
+"cone bar", "bus stop sign"). If unsure, say "unclear".
+Reply JSON: {{"caption": "...", "confidence": "high|medium|low"}}"""
+
+
+def _req(pid: str, system: str, user: str, images: tuple[bytes, ...] = (), model: str | None = None) -> ModelRequest:
+    return ModelRequest(pid, PROMPT_VERSIONS[pid], model or MODELS[pid], user, system, images, {"temperature": 0})
+
+
+def _words(words: list[tuple[str, str]] | None) -> str:
+    return "\n".join(f"{i}: {t}" for i, t in words) if words else "(none)"
 
 
 def catalog_text(entities: dict) -> str:
@@ -130,3 +214,29 @@ def x5_extract_facts(section_type: str, fields_text: str, section_text: str) -> 
 def x6_judge(quote: str, field: str, value: object, unit: str | None, field_description: str) -> ModelRequest:
     return _req("X6", _X6_SYSTEM, _X6_USER.format(quote=quote, field=field, value=value, unit=unit or "",
                                                   field_description=field_description))
+
+
+def x7_read_image(image_png: bytes, section_heading: str, nearby_text: str, title: str,
+                  ocr_words: list[tuple[str, str]], second_read: bool = False) -> ModelRequest:
+    return _req("X7", _X7_SYSTEM, _X7_USER.format(section_heading=section_heading, nearby_text=nearby_text, title=title,
+                                                  ocr_words=_words(ocr_words)), (image_png,),
+                READ2_MODEL if second_read else None)
+
+
+def x8_sheet_summary(overlay_png: bytes, master_png: bytes, sheet_no: str, title: str, legend: str, symbol_list: str,
+                     notes: str) -> ModelRequest:
+    return _req("X8", _X8_SYSTEM, _X8_USER.format(sheet_no=sheet_no, title=title, legend=legend, symbol_list=symbol_list,
+                                                  notes=notes), (overlay_png, master_png))
+
+
+def x9_read_region(crop_png: bytes, region_type: str, legend: str, ocr_words: list[tuple[str, str]] | None,
+                   second_read: bool = False) -> ModelRequest:
+    """The no-vector fallback. The second read (gpt-5.5, tighter crop) is given no OCR word list, so it is independent."""
+    words = None if second_read else ocr_words
+    return _req("X9", _X9_SYSTEM, _X9_USER.format(region_type=region_type, legend=legend, ocr_words=_words(words),
+                                                  tmd_region_schema=TMD_REGION_SCHEMA), (crop_png,),
+                READ2_MODEL if second_read else None)
+
+
+def x10_caption_symbol(crop_png: bytes, legend: str, colours: str) -> ModelRequest:
+    return _req("X10", "", _X10_USER.format(legend=legend, colours=colours), (crop_png,))

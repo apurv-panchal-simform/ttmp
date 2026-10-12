@@ -53,3 +53,14 @@ def test_config_hash_changes_with_the_template(tmp_path):
     t.write_text("[page]\nheader_band_pt = 90\n")
     assert load_config(t).config_hash() != load_config().config_hash()
     assert load_config(t).template == "acme"
+
+
+def test_diagram_section_is_validated_with_its_key_path(tmp_path):
+    for body, needle in (("[diagrams]\ntouch_overlap = 2.0\n", "diagrams.touch_overlap"),
+                         ("[diagrams]\nnear_dup_bits = 99\n", "diagrams.near_dup_bits"),
+                         ("[diagrams]\nenabled = 1\n", "diagrams.enabled"),
+                         ("[diagrams.patterns]\nrp_label = '('\n", "diagrams.patterns.rp_label")):
+        f = tmp_path / "t.toml"
+        f.write_text(body)
+        with pytest.raises(ConfigError, match=needle):
+            load_config(f)

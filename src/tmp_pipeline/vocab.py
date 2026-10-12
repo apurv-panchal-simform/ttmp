@@ -78,3 +78,27 @@ class Outcome(StrEnum):
     METADATA = "metadata"      # promoted to document metadata
     LEFTOVER = "leftover"      # unclaimed, flagged
     FAILED = "failed"          # the handler raised; the run continued
+
+
+class SymbolKind(StrEnum):
+    """What a drawn symbol on a diagram sheet is (plan section 2.6, symbol classes)."""
+    SPEED_AHEAD_SIGN = "speed_ahead_sign"
+    TEMPORARY_SPEED_LIMIT = "temporary_speed_limit"
+    SPEED_LIMIT = "speed_limit"
+    WARNING_SIGN = "warning_sign"
+    ADVANCE_SIGN = "advance_sign"
+    SCHOOL_ZONE = "school_zone"
+    END_OF_WORKS_SIGN = "end_of_works_sign"
+    SUPPLEMENTARY_PLATE = "supplementary_plate"
+    BUS_STOP_SIGN = "bus_stop_sign"
+    TRAFFIC_CONTROLLER = "traffic_controller"
+    AREA = "area"
+    LINE = "line"
+    CONES = "cones"
+    RP_LABEL = "rp_label"
+    DIMENSION_LABEL = "dimension_label"
+    ROAD_LABEL = "road_label"
+    PLACE_LABEL = "place_label"
+    HOUSE_LABEL = "house_label"
+    CALLOUT = "callout"
+    PICTOGRAM = "pictogram"      # a sign with no text; needs a caption (X10)

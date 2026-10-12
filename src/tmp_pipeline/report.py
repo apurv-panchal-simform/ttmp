@@ -92,11 +92,47 @@ def _records(records: RecordStore) -> list[str]:
     return L
 
 
+def _diagrams(store: ElementStore, records: RecordStore) -> list[str]:
+    sheets = records.of_kind("diagram_sheet")
+    figures = records.of_kind("figure")
+    if not sheets and not figures:
+        return []
+    L = ["", "## Diagrams and images", ""]
+    if sheets:
+        L += ["| Page | Sheet | Title | Rev | Vector | Symbols | Needs caption | Low-quality lines | Summary | Status |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for r in sorted(sheets, key=lambda x: x.page):
+            d = r.data
+            syms = d["symbols"]
+            summary = "none (no model)" if d.get("summary") is None else ("verified" if d["summary"]["verified"] else "unverified claims")
+            L.append(f"| {r.page} | {d['sheet']} | {d['title']} | {d['rev']} | {'yes' if d['vector'] else 'NO (fallback)'} | {len(syms)} | "
+                     f"{sum(bool(s['needs_caption']) for s in syms)} | {len(d['low_quality_lines'])} | {summary} | {r.status} |")
+        L += ["", "### Symbols by class", "", "| Page | Classes |", "| --- | --- |"]
+        for r in sorted(sheets, key=lambda x: x.page):
+            by = Counter(str(s["kind"]) for s in r.data["symbols"])
+            L.append(f"| {r.page} | " + ", ".join(f"{k} {v}" for k, v in sorted(by.items())) + " |")
+        reused = [(r.page, i) for r in sheets for i in r.data["images"]["placed"] if i["reused_on"] and i["role"] == "aerial"]
+        L += ["", "### Image lineage", ""]
+        L += [f"- p{pg}: the aerial photo is also used on p{', p'.join(map(str, i['reused_on']))}" for pg, i in reused] or ["no reused aerials"]
+        pend = [(r.page, s) for r in sheets for s in r.data["symbols"] if s["needs_caption"] and not s["extra"].get("caption")]
+        L += ["", f"### Symbols waiting for a caption ({len(pend)})", "",
+              "Pictograms with no text; X10 names them when a model is available." if pend else "none"]
+    if figures:
+        L += ["", "### Figures read", "", "| Element | Page | Status | Labels | Numbers (verified/total) | Reused from |",
+              "| --- | --- | --- | --- | --- | --- |"]
+        for r in figures:
+            nums = r.data.get("numbers", [])
+            L.append(f"| {r.evidence[0].element_id} | {r.page} | {r.status} | {len(r.data.get('labels', []))} | "
+                     f"{sum(n['status'] == 'verified' for n in nums)}/{len(nums)} | {r.data.get('reused_from') or ''} |")
+    return L
+
+
 def build_report(store: ElementStore, result: RouterResult, info: IntakeResult, records: RecordStore | None = None,
                  gold_text: str | None = None) -> str:
     L = _phase1(store, result, info)
     if records is not None:
         L += _records(records)
+        L += _diagrams(store, records)
     if gold_text:
         L += ["", "## Gold set", "", gold_text.rstrip()]
     return "\n".join(L) + "\n"

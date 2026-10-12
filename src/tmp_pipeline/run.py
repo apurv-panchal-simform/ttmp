@@ -1,4 +1,4 @@
-"""Phase 1 entry point: intake -> layers -> elements -> zones -> furniture -> router.
+"""Entry point: intake -> layers -> elements -> zones -> furniture -> masters -> diagram stage -> router.
 
     python -m tmp_pipeline.run <pdf> --out out/ [--template file.toml] [--force] [--skip-render]
 """
@@ -15,6 +15,7 @@ from . import logging_ as lg
 from .config import ConfigError, load_config
 from .constants import MASTER_DPI
 from .contracts import HandlerRegistry
+from .diagrams.stage import read_diagrams
 from .errors import PipelineError
 from .furniture import apply_furniture
 from .gold.score import render as render_gold
@@ -89,6 +90,15 @@ def run(pdf_path: str | Path, out_root: str | Path, template: str | Path | None 
         current = "furniture"
         with lg.stage("furniture"):
             apply_furniture(store, cfg)
+        if render:                                       # masters first: the diagram stage and X8 use them
+            current = "render"
+            with lg.stage("render"), Renderer(pdf_path) as r:
+                for page in range(1, info.pages + 1):
+                    path, size = r.save_master(page, out / "master")
+                    store.pages[page].master = {"file": f"master/{path.name}", "px": list(size), "dpi": MASTER_DPI}
+        current = "diagrams"
+        with lg.stage("diagrams"):
+            sheets = read_diagrams(store, pdf_path, cfg, out, render)
         store.ensure_pixel_boxes()
         store.metadata.update(file=Path(pdf_path).name, version=info.version, scanned=info.scanned,
                               pages=info.pages, run_id=run_id, versions=version_stamp(),
@@ -96,16 +106,12 @@ def run(pdf_path: str | Path, out_root: str | Path, template: str | Path | None 
         records = RecordStore(info.doc_id)
         current = "router"
         with lg.stage("router"):
-            result = route(store, cfg, out / "router.log", registry or build_registry(), records, model)
-        if render:
-            current = "render"
-            with lg.stage("render"), Renderer(pdf_path) as r:
-                for page in range(1, info.pages + 1):
-                    path, size = r.save_master(page, out / "master")
-                    store.pages[page].master = {"file": f"master/{path.name}", "px": list(size), "dpi": MASTER_DPI}
+            result = route(store, cfg, out / "router.log", registry or build_registry(), records, model, sheets=sheets, out_dir=out)
         current = "outputs"
         store.dump(out / "elements.json")
         records.dump(out / "records.json")
+        if len(sheets):
+            sheets.dump(out / "sheets.json")
         gold_text = None
         if gold is not None:
             gold_score = score_gold(records, store, json.loads(Path(gold).read_text(encoding="utf-8")))
@@ -132,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--force", action="store_true", help="re-run even if this file was already processed")
     ap.add_argument("--skip-render", action="store_true")
     ap.add_argument("--model", choices=("off", "replay"), default="off",
-                    help="off: no model calls (default); replay: answer X2/X4/X5/X6 from recorded fixtures, offline")
+                    help="off: no model calls (default); replay: answer X2-X10 from recorded fixtures, offline")
     ap.add_argument("--model-fixtures", default=None, help="folder of recorded answers for --model replay")
     ap.add_argument("--gold", default=None, help="gold JSON file: score the run and add the result to report.md")
     a = ap.parse_args(argv)

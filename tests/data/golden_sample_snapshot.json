@@ -1,5 +1,5 @@
 {
- "elements": 1236,
+ "elements": 1474,
  "zones": {
   "1": "forms",
   "2": "forms",
@@ -31,37 +31,44 @@
   "checkbox": 30,
   "diagram_sheet": 5,
   "image": 49,
+  "legend": 4,
+  "notes": 5,
   "page_furniture": 132,
-  "region": 1,
-  "table": 53,
-  "text_block": 966
+  "region": 32,
+  "table": 48,
+  "text_block": 966,
+  "vector_symbol": 203
  },
  "routes": {
   "CHECKBOX": 30,
   "DECORATIVE": 28,
-  "DIAGRAM": 293,
+  "DIAGRAM": 505,
   "FIGURE": 2,
   "METADATA": 132,
   "RISK_TABLE": 271,
-  "STRUCTURE": 6,
+  "STRUCTURE": 32,
   "TABLE": 393,
   "TEXT": 81
  },
  "outcomes": {
-  "claimed": 909,
-  "kept": 6,
+  "claimed": 1116,
+  "kept": 32,
   "metadata": 132,
-  "sent": 161,
+  "sent": 166,
   "skipped": 28
  },
  "flags": {
   "decorative": 28,
+  "duplicate": 19,
   "generic": 50,
   "low_text_quality": 23,
+  "needs_caption": 35,
   "struck": 8
  },
  "records": {
   "checkbox": 14,
+  "diagram_sheet": 5,
+  "figure": 2,
   "risk": 15,
   "risk_cell": 25,
   "risk_impact_key": 5,

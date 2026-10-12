@@ -27,6 +27,7 @@ from . import logging_ as lg
 from .catalog import Catalog, load_catalog
 from .config import Config
 from .contracts import Handler, HandlerContext, HandlerRegistry, HandlerResult
+from .diagrams.models import SheetStore
 from .geometry import centre_in, iou
 from .handlers.stubs import stub_registry
 from .models import Element, ElementStore
@@ -102,7 +103,9 @@ def rule_furniture(e: Element, c: RouteContext) -> Decision | None:
 
 
 def rule_structure(e: Element, c: RouteContext) -> Decision | None:
-    if e.type in (ElementType.REGION, ElementType.DIAGRAM_SHEET):
+    if e.type == ElementType.DIAGRAM_SHEET:               # the sheet is sent; what is drawn on it is claimed by it
+        return Decision(Route.DIAGRAM, "zones.diagram_sheet", Outcome.SENT)
+    if e.type == ElementType.REGION:
         return Decision(Route.STRUCTURE, f"zones.{e.type}", Outcome.KEPT)
     return None
 
@@ -256,14 +259,15 @@ def _apply_result(ctx: HandlerContext, res: HandlerResult) -> None:
 
 def route(store: ElementStore, cfg: Config, log_path: str | Path | None = None,
           registry: HandlerRegistry | None = None, records: RecordStore | None = None, model=None,
-          catalog: Catalog | None = None) -> RouterResult:
+          catalog: Catalog | None = None, sheets: SheetStore | None = None, out_dir: str | Path | None = None) -> RouterResult:
     """Decide, apply, and run the handlers. A handler that raises fails only its own element."""
     registry = registry if registry is not None else stub_registry()
     decisions = decide(store, cfg)
     registry.require({d.route for d in decisions.values() if d.outcome == Outcome.SENT})
     apply_decisions(store, decisions)
     ctx = HandlerContext(store, records if records is not None else RecordStore(store.doc_id), cfg,
-                         version_stamp(), model, catalog or load_catalog())
+                         version_stamp(), model, catalog or load_catalog(), sheets,
+                         Path(out_dir) if out_dir is not None else None)
     out_records: list[dict] = []
     failures: list[dict] = []
     used: list[Handler] = []

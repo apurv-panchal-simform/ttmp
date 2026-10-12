@@ -128,7 +128,7 @@ def _shape(kind, d, h) -> Shape:
                  float(d.get("linewidth") or 0))
 
 
-def _apply(m, box):
+def apply_matrix(m, box):
     """Transform [x0, y0, x1, y1] by matrix (a, b, c, d, e, f); return the enclosing box."""
     a, b, c, d, e, f = m
     xs, ys = [], []
@@ -138,7 +138,7 @@ def _apply(m, box):
     return [min(xs), min(ys), max(xs), max(ys)]
 
 
-def _compose(inner, outer):
+def compose_matrix(inner, outer):
     """Matrix applying `inner` first, then `outer`."""
     a1, b1, c1, d1, e1, f1 = inner
     a2, b2, c2, d2, e2, f2 = outer
@@ -155,12 +155,12 @@ def _page_objects(pdfium_page) -> list[PageObject]:
         bounds = list(obj.get_bounds())
         kind = _KIND.get(obj.type, "other")
         if lvl > 0:
-            bounds = _apply(cum[lvl - 1], bounds) if (lvl - 1) in cum else bounds
+            bounds = apply_matrix(cum[lvl - 1], bounds) if (lvl - 1) in cum else bounds
         out.append(PageObject(i, kind, lvl, [round(v, 2) for v in bounds],
                               last_form_index.get(lvl - 1) if lvl > 0 else None))
         if kind == "form":
             m = tuple(obj.get_matrix().get())
-            cum[lvl] = _compose(m, cum[lvl - 1]) if lvl > 0 and (lvl - 1) in cum else m
+            cum[lvl] = compose_matrix(m, cum[lvl - 1]) if lvl > 0 and (lvl - 1) in cum else m
             last_form_index[lvl] = i
     return out
 
