@@ -364,3 +364,20 @@ def check_x11(result: dict | None, sheet_ids: list[str]) -> tuple[str | None, li
         return None, ["low confidence"]
     return tid, ([] if conf == "high" else ["medium confidence"])
 
+
+_NUM = re.compile(r"\d+(?:[.,:]\d+)*")
+
+
+def check_x12(result: dict | None, chunk_text: str) -> tuple[str | None, list[str]]:
+    """(summary, problems). Number guard: every number in the summary must appear in the chunk."""
+    if not isinstance(result, dict):
+        return None, ["no usable answer"]
+    summary = _squash(str(result.get("summary") or ""))
+    if not summary:
+        return None, ["empty summary"]
+    have = set(_NUM.findall(chunk_text))
+    extra = [n for n in _NUM.findall(summary) if n not in have]
+    if extra:
+        return None, [f"the summary has numbers the chunk does not: {', '.join(extra)}"]
+    return summary, []
+

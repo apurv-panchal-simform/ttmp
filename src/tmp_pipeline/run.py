@@ -1,4 +1,4 @@
-"""Entry point: intake -> layers -> elements -> zones -> furniture -> masters -> diagram stage -> router -> facts.
+"""Entry point: intake -> layers -> elements -> zones -> furniture -> masters -> diagram stage -> router -> facts -> chunks.
 
     python -m tmp_pipeline.run <pdf> --out out/ [--template file.toml] [--force] [--skip-render]
 """
@@ -13,6 +13,8 @@ from pathlib import Path
 
 from . import logging_ as lg
 from .catalog import load_catalog
+from .chunks.model import ChunkSet
+from .chunks.stage import build_chunks, summarise_and_embed
 from .config import ConfigError, load_config
 from .constants import MASTER_DPI
 from .contracts import HandlerRegistry
@@ -29,6 +31,7 @@ from .layers.reader import read_layers
 from .layers.render import Renderer
 from .layers.to_elements import build_elements
 from .model.client import ReplayClient
+from .model.embeddings import EmbeddingClient, ReplayEmbeddings
 from .models import ElementStore, SchemaError, atomic_write_text
 from .records import RecordStore
 from .report import build_report
@@ -46,6 +49,8 @@ class RunResult:
     router: RouterResult | None = None
     records: RecordStore | None = None
     facts: Facts | None = None
+    chunks: ChunkSet | None = None
+    lineage: dict | None = None
 
 
 FAILED_MARKER = "FAILED"
@@ -62,7 +67,7 @@ def _write_failure(out: Path, stage: str, exc: BaseException, store: ElementStor
 
 def run(pdf_path: str | Path, out_root: str | Path, template: str | Path | None = None,
         force: bool = False, render: bool = True, registry: HandlerRegistry | None = None,
-        model=None, gold: str | Path | None = None) -> RunResult:
+        model=None, gold: str | Path | None = None, embedder: EmbeddingClient | None = None) -> RunResult:
     out_root = Path(out_root)
     cfg = load_config(template)
     doc_id = compute_doc_id(pdf_path)                    # the hash names the per-document folder and its log
@@ -127,19 +132,31 @@ def run(pdf_path: str | Path, out_root: str | Path, template: str | Path | None 
         with lg.stage("write_facts"):
             facts.dump(out / "facts.json")
             atomic_write_text(out / "review.json", review_json(facts))
+        current = "build_chunks"
+        with lg.stage("build_chunks"):
+            previous = ChunkSet.load_jsonl(out / "chunks.jsonl") if (out / "chunks.jsonl").exists() else None
+            chunks, lineage = build_chunks(facts, records, store, cfg)
+        current = "summarise_and_embed"
+        with lg.stage("summarise_and_embed"):
+            summarise_and_embed(chunks, cfg, model, embedder, out, previous)
+            chunks.dump_jsonl(out / "chunks.jsonl")
+            atomic_write_text(out / "lineage.json", json.dumps(lineage, indent=1, ensure_ascii=False))
         current = "outputs"
         gold_text = None
         if gold is not None:
-            gold_score = score_gold(records, store, json.loads(Path(gold).read_text(encoding="utf-8")), facts=facts)
+            gold_score = score_gold(records, store, json.loads(Path(gold).read_text(encoding="utf-8")), facts=facts,
+                                    chunks=chunks, lineage=lineage)
             gold_text = render_gold(gold_score)
             lg.log_event("gold", "scored", accuracy=gold_score.accuracy, wrong_verified=len(gold_score.wrong_verified),
                          invented=len(gold_score.invented), coverage=gold_score.coverage, passes=gold_score.passes())
-        atomic_write_text(out / "report.md", build_report(store, result, info, records, gold_text, facts))
+        atomic_write_text(out / "report.md", build_report(store, result, info, records, gold_text, facts,
+                                                                chunks, lineage))
         mark_done(out_root, info.doc_id)
         lg.log_event("run", "done", elements=len(store.elements), records=len(records),
                      coverage=result.coverage(store)["coverage"], failed=len(result.failures),
-                     conflicts=len(facts.conflicts), approval=facts.approval.status if facts.approval else None)
-        return RunResult(info, out, False, store, result, records, facts)
+                     conflicts=len(facts.conflicts), approval=facts.approval.status if facts.approval else None,
+                     chunks=len(chunks.chunks), lineage=lineage["complete"])
+        return RunResult(info, out, False, store, result, records, facts, chunks, lineage)
     except BaseException as exc:
         _write_failure(out, current, exc, store)
         raise
@@ -158,12 +175,18 @@ def main(argv: list[str] | None = None) -> int:
                     help="off: no model calls (default); replay: answer X2-X10 from recorded fixtures, offline")
     ap.add_argument("--model-fixtures", default=None, help="folder of recorded answers for --model replay")
     ap.add_argument("--gold", default=None, help="gold JSON file: score the run and add the result to report.md")
+    ap.add_argument("--embed", choices=("off", "replay"), default="off",
+                    help="off: chunks without vectors (default); replay: vectors from recorded fixtures, offline")
+    ap.add_argument("--embed-fixtures", default=None, help="folder of recorded vectors for --embed replay")
     a = ap.parse_args(argv)
     if a.model == "replay" and not a.model_fixtures:
         ap.error("--model replay needs --model-fixtures")
+    if a.embed == "replay" and not a.embed_fixtures:
+        ap.error("--embed replay needs --embed-fixtures")
     model = ReplayClient(a.model_fixtures) if a.model == "replay" else None
+    embedder = ReplayEmbeddings(a.embed_fixtures) if a.embed == "replay" else None
     try:
-        res = run(a.pdf, a.out, a.template, a.force, not a.skip_render, model=model, gold=a.gold)
+        res = run(a.pdf, a.out, a.template, a.force, not a.skip_render, model=model, gold=a.gold, embedder=embedder)
     except (PipelineError, ConfigError, SchemaError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

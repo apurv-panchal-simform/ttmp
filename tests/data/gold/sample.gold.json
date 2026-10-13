@@ -6,7 +6,8 @@
   "Matrix and register ratings are what the printed matrix shows. Cell (likelihood 4, impact 4) = 16 prints orange (High); the plan text says red.",
   "rating_mismatch rows are those whose stated rating differs from the matrix cell at (likelihood, impact).",
   "Sheets: legend, notes and roads are what the vectors draw; symbol specs were checked against the page renders by the extractor's author. Sheet 02's notes say 10M taper length, sheets 03 and 04 say 30M. The Pram Ramp swatch is read as grey hatched from the vectors; the render shows yellow.",
-  "facts: the four conflicts, approval and sign-off statuses, the diagram mention mapping (plan 3.2 table), See Above links and merges are keyed from the PDF by the extractor's author (draft, needs a second keying like the rest of this file)."
+  "facts: the four conflicts, approval and sign-off statuses, the diagram mention mapping (plan 3.2 table), See Above links and merges are keyed from the PDF by the extractor's author (draft, needs a second keying like the rest of this file).",
+  "chunks: minimum counts per chunk type, the 600-token maximum and a few key chunk texts from plan 4.3; a regression guard keyed by the extractor's author like the rest of this file."
  ],
  "expected": [
   {
@@ -2128,5 +2129,96 @@
     ]
    }
   ]
+ },
+ "chunks": {
+  "types": {
+   "doc_card": 1,
+   "stakeholders": 1,
+   "activity": 1,
+   "road": 2,
+   "schedule": 3,
+   "speed_limit": 1,
+   "stage": 4,
+   "form_fields": 5,
+   "yes_no_questions": 2,
+   "vulnerable_user": 6,
+   "risk_matrix": 1,
+   "register_row": 15,
+   "narrative_section": 10,
+   "narrative_table_row": 5,
+   "procedure": 10,
+   "sheet_overview": 5,
+   "sheet_sign_schedule": 5,
+   "sheet_notes": 5,
+   "figure_caption": 2,
+   "signoff": 6,
+   "standard_rule": 4
+  },
+  "max_tokens": 600,
+  "texts": [
+   {
+    "id": "register_row:stop-go",
+    "contains": [
+     "Risk category: Stop Go",
+     "Hazard / trigger: Stop/Go traffic control is in place.",
+     "Initial risk: Very High (likelihood Likely, consequence Fatality / permanent disability)",
+     "Residual risk: Medium (likelihood Unlikely, consequence Medical treatment injury)",
+     "Affected diagram: TMD-04 Stop Go"
+    ]
+   },
+   {
+    "id": "doc_card:card",
+    "contains": [
+     "TMP reference: KTS 26-1581 (also written KTS 26-1580)",
+     "Approval: partially signed",
+     "C-001 TMP reference differs",
+     "C-002",
+     "C-003",
+     "C-004"
+    ]
+   },
+   {
+    "id": "speed_limit:",
+    "contains": [
+     "Temporary speed limit: 30 km/h",
+     "Extent: RP 0.465 to RP 0.615",
+     "Diagrams: TMD-03 Lane Diversion; TMD-04 Stop Go"
+    ]
+   },
+   {
+    "id": "schedule:school-days",
+    "contains": [
+     "First sign in: 09:00",
+     "Site cleared: 15:00"
+    ]
+   },
+   {
+    "id": "procedure:stop-go-installation",
+    "contains": [
+     "MTCs will be positioned at the designated MTC points as indicated on the TMD."
+    ]
+   },
+   {
+    "id": "signoff:activity-manager",
+    "contains": [
+     "Status: unsigned",
+     "Signature: blank"
+    ]
+   },
+   {
+    "id": "sheet_sign_schedule:tmd-04",
+    "contains": [
+     "temporary speed limit 30 km/h \"30\" (temporary) at RP 0.465"
+    ]
+   }
+  ],
+  "metadata": {
+   "tmp_ref": "KTS 26-1581",
+   "tmp_ref_aliases": [
+    "KTS 26-1580"
+   ],
+   "approval_status": "partially_signed",
+   "has_conflict": true
+  }
  }
 }

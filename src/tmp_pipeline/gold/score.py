@@ -19,7 +19,12 @@ heading). Measures:
   facts exact                approval status, sign-off block statuses, diagram mention mapping (page, text ->
                              TMD id, id_conflict), pointer links, merged entities and rating mismatches (100%)
 
-The facts measures run only when the gold file has a ``facts`` block and the run's facts are given."""
+  lineage                    the run's lineage check is complete (plan 4.5; target 100%)
+  chunks exact               ``chunks``: minimum count per chunk type, every chunk within ``max_tokens``, and key
+                             chunks (found by id fragment) whose content holds the given lines (100%)
+
+The facts measures run only when the gold file has a ``facts`` block and the run's facts are given; the chunk
+measures likewise with a ``chunks`` block and the run's chunks."""
 from __future__ import annotations
 
 import json
@@ -28,6 +33,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..catalog import Catalog, load_catalog, normalise
+from ..chunks.model import ChunkSet
 from ..facts.model import Facts
 from ..models import ElementStore
 from ..records import FieldValue, Record, RecordStore
@@ -67,6 +73,9 @@ class GoldScore:
     conflicts_missing: list[str] = field(default_factory=list)
     conflicts_extra: list[str] = field(default_factory=list)
     facts_checks: list[tuple[str, str, bool]] = field(default_factory=list)   # (measure, item, ok)
+    lineage_complete: bool | None = None
+    lineage_gaps: list[str] = field(default_factory=list)
+    chunk_checks: list[tuple[str, str, bool]] = field(default_factory=list)
 
     @property
     def n_fields(self) -> int:
@@ -127,11 +136,17 @@ class GoldScore:
         c = self.facts_checks
         return 1.0 if not c else sum(ok for _, _, ok in c) / len(c)
 
+    @property
+    def chunks_exact_rate(self) -> float:
+        c = self.chunk_checks
+        return 1.0 if not c else sum(ok for _, _, ok in c) / len(c)
+
     def passes(self) -> bool:
         return (self.accuracy >= 0.98 and not self.wrong_verified and not self.invented and self.coverage == 1.0
                 and self.wrong_flagged_rate == 1.0 and self.unverified_hit_rate == 1.0 and self.flag_hit_rate == 1.0
                 and self.sheet_exact_rate == 1.0 and self.symbol_recall >= 0.95 and self.symbol_precision >= 0.95
-                and self.conflict_recall == 1.0 and self.conflict_precision == 1.0 and self.facts_exact_rate == 1.0)
+                and self.conflict_recall == 1.0 and self.conflict_precision == 1.0 and self.facts_exact_rate == 1.0
+                and self.lineage_complete is not False and self.chunks_exact_rate == 1.0)
 
 
 def _norm(v: object) -> object:
@@ -277,13 +292,40 @@ def _score_facts(facts: Facts, gold: dict, expected: list[dict], out: GoldScore)
         check(("rating_mismatch", f"pages {want} (got {found})", want == found))
 
 
+def _score_chunks(chunks: ChunkSet, lineage: dict | None, gold: dict, out: GoldScore) -> None:
+    g = gold["chunks"]
+    if lineage is not None:
+        out.lineage_complete = bool(lineage.get("complete"))
+        out.lineage_gaps = [f"{x['kind']} {x['ref']}" for x in lineage.get("gaps", [])]
+    check = out.chunk_checks.append
+    counts: dict[str, int] = {}
+    for c in chunks.chunks:
+        counts[c.chunk_type] = counts.get(c.chunk_type, 0) + 1
+    for ctype, n in g.get("types", {}).items():
+        check(("type", f"{ctype} >= {n} (got {counts.get(ctype, 0)})", counts.get(ctype, 0) >= n))
+    if "max_tokens" in g:
+        over = [f"{c.chunk_id} {c.tokens}" for c in chunks.chunks if c.tokens > g["max_tokens"]]
+        check(("size", f"every chunk <= {g['max_tokens']} tokens (over: {over[:3]})", not over))
+    for gt in g.get("texts", []):
+        hit = next((x for x in chunks.chunks if gt["id"] in x.chunk_id), None)
+        body = " ".join(hit.content.split()) if hit else ""
+        missing = [line for line in gt.get("contains", []) if " ".join(str(line).split()) not in body]
+        check(("text", f"{gt['id']}: {missing[:2] or 'all lines'}", hit is not None and not missing))
+    for key, want in g.get("metadata", {}).items():
+        doc = next((c for c in chunks.chunks if c.chunk_type == "doc_card"), None)
+        got = doc.metadata.get(key) if doc else None
+        check(("metadata", f"doc_card.{key} = {want!r} (got {got!r})", got == want))
+
+
 def score(records: RecordStore, store: ElementStore, gold: dict, catalog: Catalog | None = None,
-          facts: Facts | None = None) -> GoldScore:
+          facts: Facts | None = None, chunks: ChunkSet | None = None, lineage: dict | None = None) -> GoldScore:
     catalog = catalog or load_catalog()
     out = GoldScore()
     _score_sheets(records, gold, out)
     if facts is not None and "facts" in gold:
         _score_facts(facts, gold, gold["expected"], out)
+    if chunks is not None and "chunks" in gold:
+        _score_chunks(chunks, lineage, gold, out)
     gold_kinds_pages = {(g["kind"], g["page"]) for g in gold["expected"]}
     for i, g in enumerate(gold["expected"]):
         gid = g.get("id") or f"{g['kind']}:p{g['page']}:{i}"
@@ -344,6 +386,9 @@ def render(s: GoldScore) -> str:
                   f"({s.conflicts_produced - len(s.conflicts_extra)}/{s.conflicts_produced}) | 100% |",
                   f"| Facts exact (approval, sign-offs, mentions, pointers, merges, ratings) | "
                   f"{pct(s.facts_exact_rate)} ({len(s.facts_checks)}) | 100% |"]
+    if s.lineage_complete is not None or s.chunk_checks:
+        lines += [f"| Lineage complete | {'yes' if s.lineage_complete else 'no'} ({len(s.lineage_gaps)} gaps) | yes |",
+                  f"| Chunks exact (types, sizes, key texts) | {pct(s.chunks_exact_rate)} ({len(s.chunk_checks)}) | 100% |"]
     if s.wrong:
         lines += ["", "Wrong or missing fields:", ""]
         lines += [f"- {r.gold_id} `{r.field}`: expected {r.expected!r}, got {r.actual!r} ({r.outcome}, {r.status})" for r in s.wrong]
@@ -357,6 +402,8 @@ def render(s: GoldScore) -> str:
     lines += [f"- conflict not found: {m}" for m in s.conflicts_missing]
     lines += [f"- conflict not in gold: {m}" for m in s.conflicts_extra]
     lines += [f"- {what} wrong: {item}" for what, item, ok in s.facts_checks if not ok]
+    lines += [f"- lineage gap: {g}" for g in s.lineage_gaps]
+    lines += [f"- chunk {what} wrong: {item}" for what, item, ok in s.chunk_checks if not ok]
     if s.invented:
         lines += ["", "Fields not grounded in the elements they cite:", ""]
         lines += [f"- {rid} `{f}`: {raw!r}" for rid, f, raw in s.invented]
@@ -371,8 +418,10 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     d = Path(a.doc_dir)
     facts = Facts.load(d / "facts.json") if (d / "facts.json").exists() else None
+    chunks = ChunkSet.load_jsonl(d / "chunks.jsonl") if (d / "chunks.jsonl").exists() else None
+    lineage = json.loads((d / "lineage.json").read_text(encoding="utf-8")) if (d / "lineage.json").exists() else None
     s = score(RecordStore.load(d / "records.json"), ElementStore.load(d / "elements.json"),
-              json.loads(Path(a.gold).read_text(encoding="utf-8")), facts=facts)
+              json.loads(Path(a.gold).read_text(encoding="utf-8")), facts=facts, chunks=chunks, lineage=lineage)
     print(render(s))
     return 0 if s.passes() else 1
 

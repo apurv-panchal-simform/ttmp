@@ -206,3 +206,54 @@ two_way = '(?i)two[-\s]way traffic (?:will be|is) maintained'
 
 [facts.diagram_modes]        # traffic mode -> diagram sheet title that shows it (rule 4)
 stop_go = '(?i)\bstop\s*[/-]?\s*go\b'
+
+[chunks]                     # Phase 5: chunk types, sizes, text and metadata (plan part 4)
+target_min = 200
+target_max = 450
+hard_max = 600
+merge_below = 60
+split_overlap_sentences = 2
+other_overlap = 0.12
+sign_schedule_max = 15
+breadcrumb_sep = " › "
+doc_context = "Temporary traffic management for {activity}, {site}"
+site_pattern = '(?i)worksite location:\s*([^|\n]+?)\s*$'
+activity_context = '(?i)work activity description'
+procedure_table = '\bON-SITE\b|TTM Installation|TTM Removal|\bPOST REMOVAL\b|\bLANE DIVERSION -'
+procedure_removal = '(?i)^\s*TTM Removal\b|\bPOST REMOVAL\b'
+boilerplate_min_pages = 3
+default_access_groups = []
+
+[chunks.glossary]            # added to the embedding text when the abbreviation appears in a chunk
+STMS = "site traffic management supervisor"
+TSL = "temporary speed limit"
+TMO = "traffic management operative"
+TTM = "temporary traffic management"
+TMP = "traffic management plan"
+TMD = "traffic management diagram"
+MTC = "mobile traffic control"
+CSD = "clear sight distance"
+RCA = "road controlling authority"
+PCBU = "person conducting a business or undertaking"
+AADT = "annual average daily traffic"
+HMV = "heavy motor vehicles"
+ONRC = "One Network Road Classification"
+RP = "route position"
+LSZ = "longitudinal safety zone"
+WHS = "workplace health and safety"
+
+[chunks.parties]             # metadata party -> contact or sign-off role that names it (organisation preferred)
+client = '(?i)^client'
+contractor = '(?i)^contractor|^activity_manager$'
+rca = '(?i)^rca_primary$'
+designer = '(?i)^ttm_designer$'
+
+[chunks.procedure_operations]   # operation -> its heading inside a procedure cell (upper case, matched anywhere)
+on_site = '\bON-SITE\b'
+lane_diversion = '\bLANE DIVERSION\b'
+stop_go = '\bSTOP\s*/\s*GO(?: OPERATION)?\b'
+shoulder_closure = '\bSHOULDER CLOSURE\b'
+parking_management = '\bPARKING MANAGEMENT\b|\bNO PARKER\b'
+unattended = '\bUNATTENDED\b'
+post_installation = '\bPOST INSTALLATION(?: PROCEDURE)?\b'
+post_removal = '\bPOST REMOVAL(?: PROCEDURE)?\b'

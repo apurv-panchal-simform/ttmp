@@ -3,10 +3,10 @@
 Extraction, chunking and retrieval for New Zealand Temporary Traffic Management Plans. The design is in
 `TMP Combined Plan.html` (not committed; it lives next to the repo). The build has 8 phases: reading, handlers,
 diagrams and images, facts, chunking and index, retrieval L0+1, planner, operations. This repo is at
-**Phase 4: Facts** (field mapper, one id per diagram with X11, pointers, sign-offs and approval, the ten conflict
-checks, statuses, review list and corrections, optional PostgreSQL store), built on Phase 3 (diagrams and images),
-Phase 2 (handlers) and Phase 1 (reading). Model calls (X2-X11) are wired as prompts, validators and a client
-interface only; no live call has been made.
+**Phase 5: Chunking and index** (22 chunk types, size policy, chunk text and metadata, lineage check, X12 summaries
+with a number guard, embeddings interface, optional Azure AI Search index), built on Phase 4 (facts), Phase 3
+(diagrams and images), Phase 2 (handlers) and Phase 1 (reading). Model and embedding calls (X2-X12, embeddings) are
+wired as prompts, validators and client interfaces only; no live call has been made.
 
 ```
 uv sync
@@ -24,6 +24,13 @@ uv run tmp-pipeline-gold out/sha256-... tests/data/gold/sample.gold.json
 # Phase 4 on a finished run, without reading the PDF again
 uv run tmp-pipeline-facts out/sha256-...                      # rebuild facts.json + review.json (catalog/check change)
 uv run tmp-pipeline-review apply out/sha256-... corrections.json   # reviewer corrections -> "reviewed"
+
+# Phase 5 on a finished run: rebuild chunks.jsonl + lineage.json (chunker change or reviewer correction)
+uv run tmp-pipeline-chunks out/sha256-...                     # prints added / removed / changed / corrected chunks
+
+# Azure AI Search (optional: AZURE_SEARCH_ENDPOINT/KEY; --embed-live also AZURE_OPENAI_ENDPOINT/KEY)
+uv run tmp-pipeline-index create
+uv run tmp-pipeline-index push out/sha256-... [--embed-live]
 
 # PostgreSQL facts store (optional: uv sync --extra postgres; DSN in TMP_PG_DSN)
 uv run tmp-pipeline-db migrate
@@ -47,6 +54,9 @@ incomplete coverage, 2 bad input, config or schema (message on stderr).
 | `facts.json` | The canonical TMP record (Phase 4): merged facts with sources, diagram register and mentions, sign-offs, approval, conflicts, check results, coverage, review list, revision |
 | `review.json` | The review list alone: unverified values, conflicts, rating mismatches, leftovers, unmatched mentions, unsigned blocks |
 | `corrections.jsonl` | One line per applied corrections file (reviewer, items, affected paths, revision) |
+| `chunks.jsonl` | Phase 5: a header line, then one chunk per line (id, type, header, content, summary, embedding text, metadata, field paths, records, elements, tokens, content hash, vector key). The index is rebuilt from it |
+| `lineage.json` | The lineage check: complete or not, counts, exempt records (no text), struck facts, gaps |
+| `vectors/` | Embedding vectors by model, dimensions and text hash (only with an embedding client); unchanged chunks reuse theirs |
 | `router.log` | One JSON line per element: route, rule, triage, outcome, claimed_by, error |
 | `run.log` | One JSON line per event, with `run_id`, `doc_id`, `level`; stages log started/finished/failed |
 | `report.md` | Per-page zones, routes, flags, handler failures, LEFTOVER list; records by kind, unverified values, rating mismatches, refers-elsewhere, struck records, checkbox answers to confirm, gold score |
@@ -65,6 +75,11 @@ records -> map_fields -> run_checks -> write_facts -> facts.json, review.json  (
           (merge, ids,   (10 rules,     (snapshot)
            pointers,      approval,
            sign-offs)     coverage)
+
+facts + records + elements -> build_chunks -> summarise_and_embed -> chunks.jsonl, lineage.json  (-> AI Search, optional)
+                              (22 types,      (X12 + number guard,
+                               sizes, meta,    embedding text,
+                               lineage)        vectors)
 ```
 
 - `config.py` + `templates/default.toml`: typed, validated config. Layout cues (header band, rating colours,
@@ -106,6 +121,16 @@ records -> map_fields -> run_checks -> write_facts -> facts.json, review.json  (
   rules of plan 3.3 (ids C-001... in rule order); `review.py` builds the review list and applies corrections.
 - `db/`: the PostgreSQL facts store (`schema.sql`, writer, CLI), an optional extra. Like `di/`, the core never
   imports it (a test enforces this). Until phase 8 `facts.json` is canonical and the database is loaded from it.
+- `chunks/` (Phase 5, plan part 4): `build.py` has one builder per chunk type (doc card, stakeholders, activity, road,
+  schedule, speed limit, stage, form fields, yes/no questions, vulnerable users, risk matrix, register rows,
+  narrative sections and table rows, procedures by operation x install/removal, sheet overview / sign schedule / notes,
+  figure captions, sign-offs, standard rules, other); `text.py` writes values verbatim with "(unconfirmed)" and conflicts
+  in words; `size.py` merges small siblings and splits over 600 tokens between sentences with overlap; `meta.py` adds
+  the plan 4.4 metadata; `lineage.py` checks every field, section, image and leftover is in a chunk; `summarise.py`
+  runs X12 and builds the embedding text; `tokens.py` counts with `cl100k_base`, bundled in `chunks/data/` (no
+  download). `model/embeddings.py` is the embedding interface with fake, cache and record/replay clients.
+- `search/`: Azure OpenAI embeddings and the Azure AI Search index (schema, delete-upload-count push), an optional
+  package over the injectable HTTP transport. The core never imports it (a test enforces this).
 - `di/`: Document Intelligence track. The core package never imports it (a test enforces this).
 
 ## Routes and outcomes
@@ -181,6 +206,18 @@ confirmed or corrected it; the original is kept under `review`). Checks never bl
 Approval: a block is signed only when its signature cell has content (a date alone is not a signature); struck blocks
 are not applicable; Form 3 is required only when a temporary speed limit is requested. The sample is
 `partially_signed` (designer and checker signed; activity manager, RCA primary and Form 3 not).
+
+## Known gaps (Phase 5)
+
+- No live embedding, X12 or AI Search call has run (fakes, replay fixtures and a fake transport only). A push needs
+  the Azure endpoints and keys; a schema change that builds `tmp-chunks-v2` and switches over is phase 8.
+- Without a model, sheet overviews have no spatial summary (X8), pictograms no captions (X10) and figures no
+  description (X7): those chunks state this in words and are filled when the models run.
+- Procedure splitting relies on the upper-case operation headings in `[chunks.procedure_operations]`; a new layout's
+  headings are a template change.
+- A few narrative chunks are under the 60-token minimum (a short section with no sibling to merge with).
+- Boilerplate is detected only as identical chunk text on three or more pages.
+- Access groups default to none; group naming is an open decision (plan 8.2).
 
 ## Known gaps (Phase 4)
 

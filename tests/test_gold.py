@@ -124,11 +124,13 @@ def test_the_sample_run_meets_the_phase_2_gold_targets(sample_pdf, tmp_path):
     from tmp_pipeline.run import run as run_pipeline
     res = run_pipeline(sample_pdf, tmp_path, render=False)
     sc = score(RecordStore.load(res.out_dir / "records.json"), ElementStore.load(res.out_dir / "elements.json"),
-               json.loads(GOLD_FILE.read_text(encoding="utf-8")), facts=res.facts)
+               json.loads(GOLD_FILE.read_text(encoding="utf-8")), facts=res.facts,
+               chunks=res.chunks, lineage=res.lineage)
     assert sc.passes(), render(sc)
     assert sc.n_fields > 250 and sc.n_records > 80
     assert sc.conflicts_expected == 4 and sc.conflict_recall == sc.conflict_precision == 1.0   # Phase 4 exit
     assert len(sc.facts_checks) > 25 and sc.facts_exact_rate == 1.0
+    assert sc.lineage_complete is True and len(sc.chunk_checks) > 25 and sc.chunks_exact_rate == 1.0   # Phase 5 exit
 
 
 # --- sheet facts (Phase 3) ------------------------------------------------------------------------------------------
@@ -258,4 +260,25 @@ def test_facts_measures_are_skipped_without_run_facts():
     s = store_with_page()
     sc = score(RecordStore(s.doc_id), s, FACTS_GOLD)
     assert sc.conflicts_expected == 0 and not sc.facts_checks and sc.passes()
+
+
+# --- chunks (Phase 5) -----------------------------------------------------------------------------------------------
+
+def test_chunk_measures_fail_on_a_lineage_gap_a_missing_type_an_oversized_chunk_or_a_missing_line():
+    from tmp_pipeline.chunks.model import Chunk, ChunkSet
+    cs = ChunkSet("sha256:t", chunks=[Chunk("T:doc_card:card", "doc_card", "h", "TMP reference: KTS 1", tokens=50,
+                                            metadata={"tmp_ref": "KTS 1"})])
+    gold = {"expected": [], "chunks": {"types": {"doc_card": 1}, "max_tokens": 600,
+                                       "texts": [{"id": "doc_card:card", "contains": ["TMP reference: KTS 1"]}],
+                                       "metadata": {"tmp_ref": "KTS 1"}}}
+    s = store_with_page()
+    ok = score(RecordStore(s.doc_id), s, gold, chunks=cs, lineage={"complete": True, "gaps": []})
+    assert ok.passes() and ok.chunks_exact_rate == 1.0, render(ok)
+    gap = score(RecordStore(s.doc_id), s, gold, chunks=cs,
+                lineage={"complete": False, "gaps": [{"kind": "field", "ref": "road:0.aadt"}]})
+    assert not gap.passes() and "lineage gap: field road:0.aadt" in render(gap)
+    for spoil in ({"types": {"road": 1}}, {"max_tokens": 10}, {"texts": [{"id": "doc_card", "contains": ["nope"]}]},
+                  {"metadata": {"tmp_ref": "KTS 2"}}):
+        bad = score(RecordStore(s.doc_id), s, {"expected": [], "chunks": spoil}, chunks=cs, lineage=None)
+        assert bad.chunks_exact_rate < 1.0 and not bad.passes(), spoil
 

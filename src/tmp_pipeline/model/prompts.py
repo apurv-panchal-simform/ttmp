@@ -1,4 +1,4 @@
-"""Prompts X2-X11 (plan parts 2 and 3), text copied from the plan. Each builder returns a ``ModelRequest`` whose key
+"""Prompts X2-X12 (plan parts 2-4), text copied from the plan. Each builder returns a ``ModelRequest`` whose key
 covers the prompt version, so editing a prompt here (and bumping its version) invalidates exactly its cache."""
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ import json
 from .client import ModelRequest
 
 PROMPT_VERSIONS = {"X2": "1.0", "X3": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0",
-                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0", "X11": "1.0"}
+                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0", "X11": "1.0", "X12": "1.0"}
 
 # Deployments named in the plan; change them in one place when the model choice is settled (open decision).
 MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-sol", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
           "X7": "gpt-6-sol", "X8": "gpt-6-sol", "X9": "gpt-6-sol", "X10": "gpt-6-sol",
-          "X11": "gpt-5.4"}
+          "X11": "gpt-5.4", "X12": "gpt-6-luna"}
 # The independent second read of an image (failed checks, critical fields): a different model generation (plan 2.6, 2.7).
 READ2_MODEL = "gpt-5.5"
 
@@ -181,6 +181,15 @@ Surrounding sentence: "{context}"
 Which sheet does the mention refer to? If none clearly fits, answer "none".
 Reply JSON: {{"tmd_id": "<id or none>", "confidence": "high|medium|low", "reason": "<short>"}}"""
 
+_X12_SYSTEM = """You write a one or two sentence note saying which questions a chunk from a
+New Zealand Traffic Management Plan can answer. Do not add any fact, number,
+name or date that is not in the chunk."""
+
+_X12_USER = """Chunk type: {chunk_type}
+Chunk:
+{content}
+Reply JSON: {{"summary": "<1–2 sentences>"}}"""
+
 
 def _req(pid: str, system: str, user: str, images: tuple[bytes, ...] = (), model: str | None = None) -> ModelRequest:
     return ModelRequest(pid, PROMPT_VERSIONS[pid], model or MODELS[pid], user, system, images, {"temperature": 0})
@@ -257,3 +266,10 @@ def x11_match_mention(sheet_list: list[tuple[str, str]], mention_text: str, cont
     """``sheet_list`` is (tmd_id, title) per sheet, in sheet order."""
     sheets = "\n".join(f"{tid}: {title}" for tid, title in sheet_list) or "(none)"
     return _req("X11", _X11_SYSTEM, _X11_USER.format(sheet_list=sheets, mention_text=mention_text, context=context))
+
+
+def x12_chunk_summary(chunk_type: str, content: str, attempt: int = 1) -> ModelRequest:
+    """``attempt`` 2 is the one retry after a failed number guard; it is a separate request (and cache entry)."""
+    req = _req("X12", _X12_SYSTEM, _X12_USER.format(chunk_type=chunk_type, content=content))
+    return req if attempt == 1 else ModelRequest(req.prompt_id, req.prompt_version, req.model, req.user, req.system,
+                                                 req.images, {**req.params, "attempt": attempt})

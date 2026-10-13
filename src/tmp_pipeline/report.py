@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from .chunks.model import ChunkSet
 from .facts.model import Facts
 from .intake import IntakeResult
 from .models import ElementStore
@@ -190,14 +191,35 @@ def _facts(facts: Facts) -> list[str]:
     return L
 
 
+def _chunks(chunks: ChunkSet, lineage: dict | None) -> list[str]:
+    by_type: dict[str, list[int]] = {}
+    for c in chunks.chunks:
+        by_type.setdefault(c.chunk_type, []).append(c.tokens)
+    L = ["", "## Chunks", "", f"{len(chunks.chunks)} chunks; summaries: {sum(bool(c.summary) for c in chunks.chunks)}; "
+         f"vectors: {sum(bool(c.vector_key) for c in chunks.chunks)}.", "",
+         "| Type | Chunks | Tokens (min / median / max) |", "| --- | --- | --- |"]
+    for t, ns in sorted(by_type.items()):
+        ns = sorted(ns)
+        L.append(f"| {t} | {len(ns)} | {ns[0]} / {ns[len(ns) // 2]} / {ns[-1]} |")
+    if lineage is not None:
+        L += ["", f"Lineage: {'complete' if lineage['complete'] else 'GAPS'} ({lineage['fields']} fields, "
+                  f"{lineage['sections']} sections, {lineage['images']} images, {lineage['leftovers']} leftovers; "
+                  f"{len(lineage['exempt'])} records without text exempt)."]
+        L += [f"- gap: {g['kind']} {g['ref']} ({g.get('text', '')})" for g in lineage["gaps"][:40]]
+    return L
+
+
 def build_report(store: ElementStore, result: RouterResult, info: IntakeResult, records: RecordStore | None = None,
-                 gold_text: str | None = None, facts: Facts | None = None) -> str:
+                 gold_text: str | None = None, facts: Facts | None = None, chunks: ChunkSet | None = None,
+                 lineage: dict | None = None) -> str:
     L = _phase1(store, result, info)
     if records is not None:
         L += _records(records)
         L += _diagrams(store, records)
     if facts is not None:
         L += _facts(facts)
+    if chunks is not None:
+        L += _chunks(chunks, lineage)
     if gold_text:
         L += ["", "## Gold set", "", gold_text.rstrip()]
     return "\n".join(L) + "\n"

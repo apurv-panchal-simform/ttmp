@@ -195,6 +195,28 @@ class FactsCfg:
 
 
 @dataclass(frozen=True)
+class ChunksCfg:
+    target_min: int                                     # tokens: chunks aim for target_min..target_max...
+    target_max: int
+    hard_max: int                                       # ...never exceed this...
+    merge_below: int                                    # ...and siblings smaller than this are merged
+    split_overlap_sentences: int                        # sentences repeated at the start of the next part of a split
+    other_overlap: float                                # share of an other_section chunk repeated in the next one
+    sign_schedule_max: int                              # signs per sheet_sign_schedule chunk
+    breadcrumb_sep: str
+    doc_context: str                                    # one-line document context; {activity} and {site}
+    site_pattern: re.Pattern[str]                       # group 1 is the worksite address, in any record's text
+    activity_context: re.Pattern[str]                   # the heading path that holds the activity description
+    glossary: dict[str, str]                            # abbreviation -> expansion added to the embedding text
+    parties: dict[str, re.Pattern[str]]                 # metadata party -> contact role or sign-off role that names it
+    procedure_operations: dict[str, re.Pattern[str]]    # operation -> heading line in a procedure cell
+    procedure_removal: re.Pattern[str]                  # the line that starts the removal steps
+    procedure_table: re.Pattern[str]                    # a table whose text matches this holds procedures
+    boilerplate_min_pages: int                          # the same text on this many pages is boilerplate
+    default_access_groups: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Config:
     page: PageCfg
     intake: IntakeCfg
@@ -209,6 +231,7 @@ class Config:
     figures: FiguresCfg
     diagrams: DiagramsCfg
     facts: FactsCfg
+    chunks: ChunksCfg
     template: str = "default"
     sha: str = ""              # hash of the merged raw config, stamped on every run and record
 
@@ -307,6 +330,12 @@ def _validate(c: Config) -> None:
     check(0 <= d.near_dup_bits < 64, "diagrams.near_dup_bits: must be in [0, 64)")
     for key in ("rp_label", "dimension_label", "road_label", "house_label", "speed_value", "controller"):
         check(key in d.patterns, f"diagrams.patterns: missing {key!r}")
+    k = c.chunks
+    check(0 < k.merge_below <= k.target_min <= k.target_max <= k.hard_max,
+          "chunks: need 0 < merge_below <= target_min <= target_max <= hard_max")
+    check(0 <= k.other_overlap < 0.5, "chunks.other_overlap: must be in [0, 0.5)")
+    check(k.sign_schedule_max > 0 and k.boilerplate_min_pages > 1, "chunks: sign_schedule_max > 0, boilerplate_min_pages > 1")
+    check(k.site_pattern.groups >= 1, "chunks.site_pattern: needs a group for the address")
     f = c.facts
     check(f.title_max_words > 0, "facts.title_max_words: must be positive")
     check(f.heading_max_gap_pt > 0, "facts.heading_max_gap_pt: must be positive")

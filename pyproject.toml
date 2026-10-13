@@ -14,11 +14,13 @@ dependencies = [
     "pypdf>=6.19.0",
     "pypdfium2>=5.14.0",
     "pyyaml>=6.0.3",
+    "tiktoken>=0.8",
 ]
 
 [project.optional-dependencies]
 azure = ["azure-identity>=1.19"]
 postgres = ["psycopg[binary]>=3.2"]
+search = []                       # live embeddings and Azure AI Search use only the standard library
 
 [project.scripts]
 tmp-pipeline = "tmp_pipeline.run:main"
@@ -27,6 +29,8 @@ tmp-pipeline-gold = "tmp_pipeline.gold.score:main"
 tmp-pipeline-facts = "tmp_pipeline.facts.cli:main_facts"
 tmp-pipeline-review = "tmp_pipeline.facts.cli:main_review"
 tmp-pipeline-db = "tmp_pipeline.db.run:main"
+tmp-pipeline-chunks = "tmp_pipeline.chunks.cli:main"
+tmp-pipeline-index = "tmp_pipeline.search.run:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]

@@ -186,9 +186,9 @@ def test_cli_default_run_only_evaluates_triggers_and_cache_only_builds_elements(
     assert "p1:ocr_word:0" in ElementStore.load(res.out_dir / "di_elements.json").elements
 
 
-@pytest.mark.parametrize("optional", ["di", "db"])
+@pytest.mark.parametrize("optional", ["di", "db", "search"])
 def test_core_package_does_not_import_the_optional_packages(optional):
-    """Document Intelligence (di) and the PostgreSQL store (db) are optional: only they may import themselves."""
+    """Document Intelligence (di), the PostgreSQL store (db) and the live search services (search) are optional."""
     import ast
     root = Path(__file__).parent.parent / "src" / "tmp_pipeline"
     for path in root.rglob("*.py"):

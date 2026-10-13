@@ -263,6 +263,11 @@ def test_approval_counts_required_blocks_and_form_3_only_when_a_limit_is_request
 # --- the whole mapper and the checks -----------------------------------------------------------------------------
 
 def _document(two_way=True, tsl_hours="9am – 3pm (during school days)", reference="KTS 26-1580"):
+    return _document_parts(two_way, tsl_hours, reference)[0]
+
+
+def _document_parts(two_way=True, tsl_hours="9am – 3pm (during school days)", reference="KTS 26-1580"):
+    """(facts, store, records) of a small hand-built TMP with the four kinds of conflict."""
     store, rs = _signoff_doc()
     for p in (1, 3, 4, 12, 18, 20, 21, 22, 23, 24):
         store.pages[p] = PageInfo(width_pt=595, height_pt=842, form_name="Planning", tmp_reference=
@@ -281,7 +286,7 @@ def _document(two_way=True, tsl_hours="9am – 3pm (during school days)", refere
                   "28 September 2026 To 28 October 2026"}]})]:
         rs.add(r)
     facts = map_fields(store, rs, CFG, CAT)
-    return run_checks(facts, store, rs, CFG, CAT)
+    return run_checks(facts, store, rs, CFG, CAT), store, rs
 
 
 def test_the_four_document_conflicts_get_ids_in_rule_order():

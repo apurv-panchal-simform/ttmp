@@ -99,3 +99,20 @@ def test_phase_4_facts_on_the_sample(result):
     assert json.loads((out / "review.json").read_text())["items"]
     assert "## Facts and checks" in (out / "report.md").read_text()
 
+
+def test_phase_5_chunks_on_the_sample(result):
+    """Plan 8.3 phase 5 exit: lineage 100%; sizes within the hard maximum; every applicable chunk type present."""
+    cs, lineage = result.chunks, result.lineage
+    assert lineage["complete"], lineage["gaps"][:5]
+    assert all(c.tokens <= 600 for c in cs.chunks)
+    types = {c.chunk_type for c in cs.chunks}
+    assert types >= {"doc_card", "stakeholders", "activity", "road", "schedule", "speed_limit", "stage", "form_fields",
+                     "yes_no_questions", "vulnerable_user", "risk_matrix", "register_row", "narrative_section",
+                     "narrative_table_row", "procedure", "sheet_overview", "sheet_sign_schedule", "sheet_notes",
+                     "figure_caption", "signoff", "standard_rule"}
+    assert len({c.chunk_id for c in cs.chunks}) == len(cs.chunks)
+    stop_go = next(c for c in cs.of("register_row") if c.chunk_id.endswith(":stop-go"))
+    assert stop_go.header.startswith("KTS 26-1581 \u203a 1. TMP Planning Form \u203a Risk register \u203a Stop Go \u2014 page 6")
+    assert "Affected diagram: TMD-04 Stop Go" in stop_go.content
+    assert (result.out_dir / "chunks.jsonl").exists() and json.loads((result.out_dir / "lineage.json").read_text())["complete"]
+
