@@ -152,3 +152,49 @@ def test_cached_embeddings_ask_only_for_new_text(tmp_path):
     cached.embed(["a", "b"])
     cached.embed(["a", "b", "c"])
     assert fake.calls == [["a", "b"], ["c"]]
+
+
+# --- Phase 6: search_chunks against AI Search (plan 5.7) ----------------------------------------------------------
+
+class FakeQuery:
+    """AI Search docs/search for queries: a filtered fetch-all, or a keyword query answered by naive matching."""
+
+    def __init__(self, docs):
+        self.docs, self.bodies = docs, []
+
+    def __call__(self, method, url, headers, body):
+        data = json.loads(body)
+        self.bodies.append(data)
+        if data["search"] == "*":
+            return 200, {}, json.dumps({"value": self.docs[data.get("skip", 0):][:data["top"]]}).encode()
+        words = data["search"].lower().split()
+        hits = [dict(d, **{"@search.score": sum(w in d["content"].lower() for w in words)}) for d in self.docs]
+        hits = sorted((h for h in hits if h["@search.score"]), key=lambda h: -h["@search.score"])
+        return 200, {}, json.dumps({"value": hits[:data["top"]]}).encode()
+
+
+def test_azure_search_filters_trim_by_access_and_reuse_the_ranking_rules():
+    from tmp_pipeline.config import load_config
+    from tmp_pipeline.retrieval.hybrid import SearchRequest
+    from tmp_pipeline.retrieval.store import User
+    from tmp_pipeline.search.query import AzureSearch, filter_for, to_chunk
+    cs = _chunks()[0]
+    docs = [document(c, None, {}) for c in cs.chunks]
+    back = to_chunk(docs[0])
+    assert (back.chunk_id, back.chunk_type, back.content) == (cs.chunks[0].chunk_id, cs.chunks[0].chunk_type,
+                                                             cs.chunks[0].content)
+    assert back.metadata["tmp_ref"] == cs.chunks[0].metadata["tmp_ref"]
+    req = SearchRequest(cs.doc_id, "speed limit", ("speed_limit", "road"), scope="site_specific")
+    f = filter_for(req, User(("designers", "o'neil")))
+    assert f.startswith(f"doc_id eq '{cs.doc_id}' and applicability eq 'active'")
+    assert "search.in(chunk_type, 'speed_limit,road', ',')" in f and "scope eq 'site_specific'" in f
+    assert "access_groups/any(g: search.in(g, 'designers,o''neil', ','))" in f
+    assert filter_for(SearchRequest("d", "q"), User()).endswith("not access_groups/any()")
+    fake = FakeQuery(docs)
+    s = AzureSearch(load_config(), SearchConfig("https://s.search.windows.net", "secret"),
+                    FakeEmbeddings(dims=4), fake)
+    hits = s.search(SearchRequest(cs.doc_id, "temporary speed limit", k=2), User())
+    assert hits and hits[0].chunk.chunk_type == "speed_limit"
+    query = next(b for b in fake.bodies if b["search"] != "*")
+    assert query["vectorQueries"][0]["fields"] == "content_vector" and len(query["vectorQueries"][0]["vector"]) == 4
+    assert query["searchFields"] == "header,content,summary,glossary_terms,codes"

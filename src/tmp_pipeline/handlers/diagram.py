@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import asdict
 
 from ..contracts import BaseHandler, ElementUpdate, HandlerContext, HandlerResult
+from ..diagrams.describe import describe
 from ..diagrams.models import SheetModel
 from ..model import prompts
 from ..models import Element
@@ -21,6 +22,7 @@ from ..numerics import extract
 from ..records import Evidence, FieldValue, Record, Status
 from ..vocab import ElementType, Flag, Route
 from . import diagram_model as dm
+from .image_full import read_sheet
 
 
 def tmd_id(sheet_no: str | None) -> str | None:
@@ -69,7 +71,7 @@ class DiagramHandler(BaseHandler):
         return res
 
     def _record(self, ctx: HandlerContext, element: Element, sheet: SheetModel) -> Record:
-        used = {k: prompts.PROMPT_VERSIONS[k] for k in ("X7", "X8", "X9", "X10")} if ctx.model is not None else {}
+        used = {k: prompts.PROMPT_VERSIONS[k] for k in ("X7", "X8", "X9", "X10", "X13")} if ctx.model is not None else {}
         stamp = ctx.stamp(self, used, prompts.MODELS["X8"] if ctx.model is not None else "none")
         by_role = {r.kind: r for r in sheet.regions}
         evidence = [Evidence.of(element)]
@@ -117,6 +119,8 @@ class DiagramHandler(BaseHandler):
         for s in sheet.symbols:
             if s.id in captions:
                 s.extra["caption"] = captions[s.id]
+        facts = describe(sheet, (element.page_size_pt[0], element.page_size_pt[1]), ctx.cfg.diagrams.describe)
+        full = read_sheet(ctx, element, sheet, facts, dm.legend_text(sheet)) if ctx.model is not None else None
         if not sheet.vector:
             flags.append(Flag.UNVERIFIED)
             problems.append("no vector overlay")
@@ -129,7 +133,7 @@ class DiagramHandler(BaseHandler):
             "symbols": [asdict(s) for s in sheet.symbols], "notes": sheet.notes, "callouts": sheet.callouts,
             "regions": [asdict(r) for r in sheet.regions], "title_block": sheet.title_block,
             "low_quality_lines": sheet.low_quality_lines, "captions": captions, "summary": summary,
-            "figures": figures, "fallback": fallback,
+            "figures": figures, "fallback": fallback, "describe": {"facts": facts, "read": full},
             "images": {"master": sheet.master, "overlay": sheet.overlay, "placed": [asdict(i) for i in sheet.images]},
         }
         return Record("diagram_sheet", sheet.page, stamp, fields, "tmd_sheet", evidence, [], flags,

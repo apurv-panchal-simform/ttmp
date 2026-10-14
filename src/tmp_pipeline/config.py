@@ -142,6 +142,16 @@ class FiguresCfg:
 
 
 @dataclass(frozen=True)
+class DescribeCfg:
+    end_tol_pt: float          # a dimension line ends at an item when its edge (areas) or centre (signs) is this close
+    end_max_d_pt: float        # ...and the item is no further than this from the line, across it
+    garbled: re.Pattern[str]   # a character no correctly encoded sheet text has: the font encoding garbled the line
+    garbled_match_min: float   # a model reading of garbled text keeps at least this share of its plain letters, in order
+    skip_place: re.Pattern[str]    # a "place name" that is a web or email address
+    read_tiles: bool           # X13 also reads the plan in tiles ([diagrams] tile_cols x tile_rows) for small detail
+
+
+@dataclass(frozen=True)
 class DiagramsCfg:
     enabled: bool
     touch_overlap: float       # two drawn objects belong to one symbol when this share of the smaller lies inside the other
@@ -167,6 +177,7 @@ class DiagramsCfg:
     sign_text: dict[str, re.Pattern[str]]      # sign kind -> text cue, first match wins
     title_labels: dict[str, re.Pattern[str]]   # title block field -> its printed label
     area_meanings: dict[str, str]              # legend meaning (lower case) -> area kind
+    describe: DescribeCfg                      # image facts for image questions (diagrams/describe.py)
 
 
 @dataclass(frozen=True)
@@ -217,6 +228,31 @@ class ChunksCfg:
 
 
 @dataclass(frozen=True)
+class RetrievalCfg:
+    tmp_ref: re.Pattern[str]                            # a TMP reference; groups: company prefix, year, number
+    time_mention: re.Pattern[str]                       # a time or day in a question (half of the time_check rule)
+    follow_up: re.Pattern[str]                          # a message that leans on the previous turn (Q1 rewrites it)
+    road_suffix: re.Pattern[str]                        # a word that ends a road name ("Avenue", "Rd")
+    candidates: int                                     # keyword and vector candidates per search, before fusion
+    rrf_k: int                                          # reciprocal rank fusion constant
+    detail_boost: float                                 # rank bonus for chunks matching a TMD, road or RP in the question
+    context_budget: int                                 # tokens for the answer context; chunks are cut first
+    calendar: str                                       # school-term and holiday data file in tmp_pipeline/data ("" = none)
+    timezone: str
+    default_role: str
+    rules: dict[str, re.Pattern[str]]                   # question type -> cue, in precedence order (plan 5.4)
+    day_types: dict[str, re.Pattern[str]]               # day type in a question -> how it is asked
+    day_type_facts: dict[str, str]                      # day type in a question -> canonical day type in the facts
+    entities: dict[str, str]                            # get_facts entity -> stored entities ("a|b"; "*" = built in code)
+    entity_cues: dict[str, re.Pattern[str]]             # words in a question -> the get_facts entity it asks about
+    chunk_types: dict[str, tuple[str, ...]]             # recipe -> chunk types searched (empty = all)
+    k: dict[str, int]                                   # recipe -> chunks kept
+    calculations: dict[str, dict[str, str]]             # calculation -> when, entity, expression, result_unit, stated
+    role_styles: dict[str, str]                         # user role -> Q3 answer style
+    responses: dict[str, str]                           # fixed responses (plan 5.13)
+
+
+@dataclass(frozen=True)
 class Config:
     page: PageCfg
     intake: IntakeCfg
@@ -232,6 +268,7 @@ class Config:
     diagrams: DiagramsCfg
     facts: FactsCfg
     chunks: ChunksCfg
+    retrieval: RetrievalCfg
     template: str = "default"
     sha: str = ""              # hash of the merged raw config, stamped on every run and record
 
@@ -336,6 +373,24 @@ def _validate(c: Config) -> None:
     check(0 <= k.other_overlap < 0.5, "chunks.other_overlap: must be in [0, 0.5)")
     check(k.sign_schedule_max > 0 and k.boilerplate_min_pages > 1, "chunks: sign_schedule_max > 0, boilerplate_min_pages > 1")
     check(k.site_pattern.groups >= 1, "chunks.site_pattern: needs a group for the address")
+    r = c.retrieval
+    check(r.tmp_ref.groups == 3, "retrieval.tmp_ref: needs groups for prefix, year and number")
+    check(r.candidates > 0 and r.rrf_k > 0 and r.context_budget > 0, "retrieval: candidates, rrf_k, context_budget > 0")
+    check("default" in r.k and all(v > 0 for v in r.k.values()), "retrieval.k: needs a positive 'default'")
+    check(r.default_role in r.role_styles, "retrieval.default_role: must be a key of retrieval.role_styles")
+    check(set(r.day_type_facts) <= set(r.day_types), "retrieval.day_type_facts: keys must be retrieval.day_types keys")
+    check(set(r.day_type_facts.values()) <= set(c.facts.day_types),
+          "retrieval.day_type_facts: values must be facts.day_types keys")
+    check(set(r.entity_cues) <= set(r.entities), "retrieval.entity_cues: keys must be retrieval.entities keys")
+    for name, calc in r.calculations.items():
+        missing = {"when", "entity", "expression", "result_unit"} - set(calc)
+        check(not missing, f"retrieval.calculations.{name}: missing {', '.join(sorted(missing))}")
+        try:
+            re.compile(calc.get("when", ""))
+        except re.error as e:
+            raise ConfigError(f"retrieval.calculations.{name}.when: bad regex: {e}") from None
+    for key in ("ask_back", "no_match", "not_in_tmp", "out_of_scope", "struck", "no_access", "no_tmp"):
+        check(key in r.responses, f"retrieval.responses: missing {key!r}")
     f = c.facts
     check(f.title_max_words > 0, "facts.title_max_words: must be positive")
     check(f.heading_max_gap_pt > 0, "facts.heading_max_gap_pt: must be positive")

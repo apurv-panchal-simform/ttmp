@@ -10,11 +10,12 @@ import sys
 from pathlib import Path
 
 from .. import logging_ as lg
+from .. import tracing
 from ..config import ConfigError, load_config
 from ..errors import PipelineError
 from ..facts.model import Facts
-from ..model.client import ReplayClient
 from ..model.embeddings import ReplayEmbeddings
+from ..model.live import MODES, model_client
 from ..models import ElementStore, SchemaError, atomic_write_text
 from ..records import RecordStore
 from .model import ChunkSet
@@ -64,16 +65,16 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="tmp-pipeline-chunks", description="Rebuild chunks.jsonl from saved results")
     ap.add_argument("doc_dir")
     ap.add_argument("--template", default=None)
-    ap.add_argument("--model", choices=("off", "replay"), default="off")
+    ap.add_argument("--model", choices=MODES, default="off")
     ap.add_argument("--model-fixtures", default=None)
     ap.add_argument("--embed", choices=("off", "replay"), default="off")
     ap.add_argument("--embed-fixtures", default=None)
     a = ap.parse_args(argv)
+    tracing.configure()            # exports spans to Langfuse only when LANGFUSE_PUBLIC_KEY/SECRET_KEY are set
     if (a.model == "replay" and not a.model_fixtures) or (a.embed == "replay" and not a.embed_fixtures):
         ap.error("replay needs its fixtures folder")
     try:
-        chunks, lineage, changes = rebuild(a.doc_dir, a.template,
-                                           ReplayClient(a.model_fixtures) if a.model == "replay" else None,
+        chunks, lineage, changes = rebuild(a.doc_dir, a.template, model_client(a.model, a.model_fixtures),
                                            ReplayEmbeddings(a.embed_fixtures) if a.embed == "replay" else None)
     except (PipelineError, ConfigError, SchemaError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)

@@ -76,3 +76,41 @@ def test_write_is_idempotent_and_a_review_rewrite_updates_status(tmp_path):
         conn.execute("DELETE FROM tmp_document WHERE doc_id = %s", (f.doc_id,))
         assert conn.execute("SELECT count(*) FROM fact WHERE doc_id = %s", (f.doc_id,)).fetchone()[0] == 0
         conn.commit()
+
+
+def test_values_read_back_from_the_fact_table_keep_their_type():
+    from tmp_pipeline.db.reader import _value
+    row = {"value_json": None, "value_num": None, "value_text": None, "unit": None}
+    assert _value({**row, "value_json": '["a", "b"]'}) == ["a", "b"]
+    assert _value({**row, "value_num": 9260.0}) == 9260 and isinstance(_value({**row, "value_num": 0.0, "unit": "km"}), float)
+    assert _value({**row, "value_text": "true"}) is True and _value({**row, "value_text": "Sunrise"}) == "Sunrise"
+
+
+@needs_db
+@pytest.mark.postgres
+def test_the_postgres_store_reads_back_what_the_tools_need():
+    from tmp_pipeline.config import load_config
+    from tmp_pipeline.db.reader import PgFactsStore
+    from tmp_pipeline.db.writer import connect, migrate, write
+    from tmp_pipeline.retrieval.store import NoAccessError, User
+    from tmp_pipeline.retrieval.tools import get_facts, get_status
+    f = _document()
+    f.doc_id = "sha256:readtest"
+    with connect(DSN) as conn:
+        migrate(conn)
+        write(conn, f.doc_id, build_rows(f), ["designers"])
+        store = PgFactsStore(conn=conn)
+        assert store.docs(User()) == [] and [d.doc_id for d in store.docs(User(("designers",)))] == [f.doc_id]
+        with pytest.raises(NoAccessError):
+            store.facts(f.doc_id, User())
+        back = store.facts(f.doc_id, User(("designers",)))
+        cfg = load_config()
+        (sl,) = get_facts(back, None, cfg, "speed_limit")
+        assert sl.value("rp_from").value == 0.465 and sl.value("speed_kmh").value == 30
+        st = get_status(back, None)
+        assert st["approval"] == "partially_signed" and len(st["conflicts"]) == 4
+        assert {s.tmd_id for s in back.tmd_sheets} == {s.tmd_id for s in f.tmd_sheets}
+        info = store.docs(User(("designers",)))[0]
+        assert info.tmp_ref == "KTS 26-1581" and "KTS 26-1580" in info.aliases
+        conn.execute("DELETE FROM tmp_document WHERE doc_id = %s", (f.doc_id,))
+        conn.commit()

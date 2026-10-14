@@ -13,6 +13,8 @@ from typing import Any
 
 from ..models import SCHEMA_VERSION, SchemaError, atomic_write_text
 
+NOT_STORED = {"embedding_text"}      # rebuilt from the chunk when needed (chunks.summarise.fill_embedding_text)
+
 
 @dataclass
 class Chunk:
@@ -57,7 +59,8 @@ class ChunkSet:
         head = {"schema_version": SCHEMA_VERSION, "doc_id": self.doc_id, "versions": self.versions,
                 "facts_revision": self.facts_revision, "chunks": len(self.chunks)}
         lines = [json.dumps(head, ensure_ascii=False)]
-        lines += [json.dumps(asdict(c), ensure_ascii=False, default=str) for c in self.chunks]
+        lines += [json.dumps({k: v for k, v in asdict(c).items() if k not in NOT_STORED}, ensure_ascii=False, default=str)
+                  for c in self.chunks]
         atomic_write_text(path, "\n".join(lines) + "\n")
 
     @classmethod

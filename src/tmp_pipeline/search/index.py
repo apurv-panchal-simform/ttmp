@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .. import logging_ as lg
+from ..chunks.meta import DOC_FIELDS
 from ..chunks.model import Chunk, ChunkSet
 from ..transport import ServiceError, Transport, raise_for_status, urllib_transport, with_retry
 
@@ -54,7 +55,6 @@ def index_schema(name: str = INDEX, dims: int = DIMS) -> dict:
         {"name": "glossary_terms", "type": "Collection(Edm.String)", "searchable": True},
         {"name": "codes", "type": "Collection(Edm.String)", "searchable": True, "filterable": True,
          "analyzer": "keyword"},
-        {"name": "symbols_json", "type": "Edm.String", "retrievable": True},
         *({"name": k, "type": t, "filterable": True, "retrievable": True, "facetable": k in ("chunk_type", "zone")}
           for k, t in FILTERABLE.items()),
         {"name": "content_vector", "type": "Collection(Edm.Single)", "searchable": True, "retrievable": False,
@@ -76,13 +76,14 @@ def index_schema(name: str = INDEX, dims: int = DIMS) -> dict:
     }
 
 
-def document(c: Chunk, vector: list[float] | None, glossary: dict[str, str]) -> dict:
-    md = c.metadata
+def document(c: Chunk, vector: list[float] | None, glossary: dict[str, str], card: dict | None = None) -> dict:
+    """``card`` is the doc card's metadata: the document fields (plan 4.4) are stored on the card only and copied to
+    every index document here, so the index can still filter any chunk by site, road, party or dates."""
+    md = {**{k: v for k, v in (card or {}).items() if k in DOC_FIELDS}, **c.metadata, "chunk_type": c.chunk_type}
     doc: dict[str, Any] = {"id": c.chunk_id.replace(":", "__"), "header": c.header, "content": c.content,
                            "summary": c.summary, "content_hash": c.content_hash,
                            "glossary_terms": [f"{a} {b}" for a, b in glossary.items() if a in c.embedding_text],
-                           "codes": md.get("codes", []),
-                           "symbols_json": json.dumps(md.get("symbols") or [], ensure_ascii=False)}
+                           "codes": md.get("codes", [])}
     for k in FILTERABLE:
         if k == "chunk_id":
             doc[k] = c.chunk_id
@@ -161,7 +162,8 @@ class SearchIndex:
         old = self.ids_for(chunks.doc_id)
         if old:
             self._batch([{"@search.action": "delete", "id": i} for i in old], "delete chunks")
-        docs = [document(c, vectors.get(c.vector_key or ""), glossary) for c in chunks.chunks]
+        card = next((c.metadata for c in chunks.of("doc_card")), None)
+        docs = [document(c, vectors.get(c.vector_key or ""), glossary, card) for c in chunks.chunks]
         self._batch([{"@search.action": "upload", **d} for d in docs], "upload chunks")
         want, got = len(docs), -1
         for attempt in range(checks):

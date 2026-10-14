@@ -1,0 +1,54 @@
+# New Zealand school terms and public holidays used by time_check to turn a date into a day type (plan 5.8).
+#
+# Sources (checked 2026-10-13):
+#   school terms     https://www.education.govt.nz/term-dates-and-holidays
+#   public holidays  https://www.employment.govt.nz/leave-and-holidays/public-holidays/public-holidays-and-anniversary-dates
+#
+# Terms 2 and 3 are fixed nationally. Each school picks its own Term 1 start and Term 4 end within a window, so
+# days inside an `uncertain` range give "school day or holiday not known" instead of a guess. A date outside
+# `covers` is also "not known". Add the next year here when the Ministry publishes it; the use of this data
+# is an open client decision (plan 8.2), and `[retrieval] calendar = ""` switches it off.
+
+region = "Auckland"
+covers = ["2026-01-01", "2027-09-24"]       # 2027 Term 4 is not published yet
+
+terms = [
+    ["2026-02-09", "2026-04-02"],           # Term 1 (schools may start from 26 January)
+    ["2026-04-20", "2026-07-03"],
+    ["2026-07-20", "2026-09-25"],
+    ["2026-10-12", "2026-12-18"],           # Term 4 (ends no later than 18 December)
+    ["2027-02-08", "2027-04-09"],           # Term 1 (start date varies by school)
+    ["2027-04-27", "2027-07-02"],
+    ["2027-07-19", "2027-09-24"],
+]
+
+uncertain = [
+    ["2026-01-26", "2026-02-08"],           # Term 1 2026 starts between 26 January and 9 February
+    ["2026-12-01", "2026-12-18"],           # Term 4 2026 may end earlier than 18 December
+    ["2027-01-25", "2027-02-07"],           # Term 1 2027 starts late January or early February
+]
+
+# observed dates (Mondayised where the day falls on a weekend), plus the Auckland anniversary day
+public_holidays = [
+    ["2026-01-01", "New Year's Day"],
+    ["2026-01-02", "Day after New Year's Day"],
+    ["2026-01-26", "Auckland Anniversary Day"],
+    ["2026-02-06", "Waitangi Day"],
+    ["2026-04-03", "Good Friday"],
+    ["2026-04-06", "Easter Monday"],
+    ["2026-04-27", "ANZAC Day (observed)"],
+    ["2026-06-01", "King's Birthday"],
+    ["2026-07-10", "Matariki"],
+    ["2026-10-26", "Labour Day"],
+    ["2026-12-25", "Christmas Day"],
+    ["2026-12-28", "Boxing Day (observed)"],
+    ["2027-01-01", "New Year's Day"],
+    ["2027-01-04", "Day after New Year's Day (observed)"],
+    ["2027-02-01", "Auckland Anniversary Day"],
+    ["2027-02-08", "Waitangi Day (observed)"],
+    ["2027-03-26", "Good Friday"],
+    ["2027-03-29", "Easter Monday"],
+    ["2027-04-26", "ANZAC Day (observed)"],
+    ["2027-06-07", "King's Birthday"],
+    ["2027-06-25", "Matariki"],
+]

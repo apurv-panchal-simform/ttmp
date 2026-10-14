@@ -8,6 +8,7 @@ VERSIONS = {
     "model": "none",
     "chunker": "0.1.0",
     "facts": "0.1.0",
+    "retrieval": "0.1.0",
 }
 
 

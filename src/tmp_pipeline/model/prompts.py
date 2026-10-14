@@ -1,4 +1,4 @@
-"""Prompts X2-X12 (plan parts 2-4), text copied from the plan. Each builder returns a ``ModelRequest`` whose key
+"""Prompts X2-X12 and Q1, Q3, Q4 (plan parts 2-5), text copied from the plan. Each builder returns a ``ModelRequest`` whose key
 covers the prompt version, so editing a prompt here (and bumping its version) invalidates exactly its cache."""
 from __future__ import annotations
 
@@ -7,12 +7,17 @@ import json
 from .client import ModelRequest
 
 PROMPT_VERSIONS = {"X2": "1.0", "X3": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0",
-                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0", "X11": "1.0", "X12": "1.0"}
+                   "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0", "X11": "1.0", "X12": "1.0",
+                   "X13": "1.0", "Q1": "1.0", "Q3": "1.1", "Q4": "1.0"}
 
 # Deployments named in the plan; change them in one place when the model choice is settled (open decision).
-MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-sol", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
-          "X7": "gpt-6-sol", "X8": "gpt-6-sol", "X9": "gpt-6-sol", "X10": "gpt-6-sol",
-          "X11": "gpt-5.4", "X12": "gpt-6-luna"}
+# Image reads (X3, X7, X8, X9, X10) run on gpt-6-luna by decision (plan 2.2 names gpt-6-sol); the second read stays gpt-5.5.
+MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-luna", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
+          "X7": "gpt-6-luna", "X8": "gpt-6-luna", "X9": "gpt-6-luna", "X10": "gpt-6-luna",
+          "X11": "gpt-5.4", "X12": "gpt-6-luna", "X13": "gpt-6-luna", "Q1": "gpt-6-luna", "Q3": "gpt-6-luna", "Q4": "gpt-6-sol"}
+# Answers (Q3) are written by gpt-6-luna without thinking by decision (2026-10-14: same text-set score as gpt-6-sol at
+# a twentieth of the cost); a failed answer is repaired (Q4) by gpt-6-sol. Per-prompt thinking overrides the default.
+REASONING = {"Q3": "none"}
 # The independent second read of an image (failed checks, critical fields): a different model generation (plan 2.6, 2.7).
 READ2_MODEL = "gpt-5.5"
 
@@ -164,6 +169,45 @@ TMD_REGION_SCHEMA = (
     ' "pedestrians": [{"statement": "...", "ocr_ids": []}],'
     ' "other": [{"text": "...", "ocr_ids": []}]}')
 
+_X13_SYSTEM = """You look at an image from a New Zealand Traffic Management Plan (TMP) and say
+what it shows, so that later questions about the image can be answered without it.
+What the drawing's vectors and text layer already give is listed below with IDs
+(items, distances, text): use those IDs and never invent signs, numbers, text or
+distances. Report only what is visible; anything you work out rather than see goes
+in "inferred". If you cannot read something, list it in "unreadable"."""
+
+_X13_USER = """[{images}]
+What this is: {scope}
+Diagram: {title}
+Legend: {legend}
+Notes panel: {notes}
+Items (id | what | where): {items}
+Distances (id | value | the dimension line runs from ... to ..., from the geometry): {distances}
+Text printed with a broken font (id | as printed): {garbled}
+Tell:
+1. description: 3-5 plain sentences on what the image shows{whole}.
+2. drawing_type and purpose (one sentence each){whole}.
+3. items: for each item ID you can see, what it looks like (shape, colour, text on
+   it, arrows) and which side of the road it is on (north/south/east/west of the
+   road, or "unclear"); give a sign's meaning only if it is clear from the image.
+   Things with no ID that matter go in with "item_id": "new" and where they are.
+4. distances: for each distance ID, what it measures, in words, from the image.
+5. relations between items ("before", "after", "opposite", "next to", "inside").
+6. pedestrians and vehicles: how each is routed past the works.
+7. garbled_text: what each broken-font line actually says, letter for letter
+   where you can see it in the image.
+8. unreadable: anything too small, cut off or blurred to read.
+9. inferred: statements you made that you did not read directly from the image.
+Reply JSON:
+{{"description": "...", "drawing_type": "...", "purpose": "...",
+ "items": [{{"item_id": "...", "looks_like": "...", "road_side": "...", "meaning": "...", "where": "..."}}],
+ "distances": [{{"item_id": "...", "measures": "..."}}],
+ "relations": [{{"a": "<item id>", "relation": "...", "b": "<item id>"}}],
+ "pedestrians": "...", "vehicles": "...",
+ "garbled_text": [{{"id": "...", "reads_as": "..."}}],
+ "unreadable": [{{"where": "...", "what": "..."}}],
+ "inferred": ["..."]}}"""
+
 _X10_USER = """[image: crop of one symbol from a traffic management diagram]
 Legend for this sheet: {legend}
 Colours in the symbol: {colours}
@@ -192,7 +236,10 @@ Reply JSON: {{"summary": "<1–2 sentences>"}}"""
 
 
 def _req(pid: str, system: str, user: str, images: tuple[bytes, ...] = (), model: str | None = None) -> ModelRequest:
-    return ModelRequest(pid, PROMPT_VERSIONS[pid], model or MODELS[pid], user, system, images, {"temperature": 0})
+    params: dict = {"temperature": 0}
+    if pid in REASONING:
+        params["reasoning_effort"] = REASONING[pid]
+    return ModelRequest(pid, PROMPT_VERSIONS[pid], model or MODELS[pid], user, system, images, params)
 
 
 def _words(words: list[tuple[str, str]] | None) -> str:
@@ -258,6 +305,15 @@ def x9_read_region(crop_png: bytes, region_type: str, legend: str, ocr_words: li
                 READ2_MODEL if second_read else None)
 
 
+def x13_read_image(images: tuple[bytes, ...], image_names: str, scope: str, title: str, legend: str, notes: str,
+                   items: str, distances: str, garbled: str, whole: bool = True) -> ModelRequest:
+    """``whole`` False for a tile of a larger sheet: the description and purpose are left to the whole-sheet read."""
+    tail = "" if whole else " (this is one part of a larger sheet: describe only this part)"
+    return _req("X13", _X13_SYSTEM, _X13_USER.format(images=image_names, scope=scope, title=title, legend=legend,
+                                                    notes=notes, items=items or "(none)", distances=distances or "(none)",
+                                                    garbled=garbled or "(none)", whole=tail), images)
+
+
 def x10_caption_symbol(crop_png: bytes, legend: str, colours: str) -> ModelRequest:
     return _req("X10", "", _X10_USER.format(legend=legend, colours=colours), (crop_png,))
 
@@ -273,3 +329,138 @@ def x12_chunk_summary(chunk_type: str, content: str, attempt: int = 1) -> ModelR
     req = _req("X12", _X12_SYSTEM, _X12_USER.format(chunk_type=chunk_type, content=content))
     return req if attempt == 1 else ModelRequest(req.prompt_id, req.prompt_version, req.model, req.user, req.system,
                                                  req.images, {**req.params, "attempt": attempt})
+
+
+# --- retrieval (plan part 5) -------------------------------------------------------------------------------------
+# Q2 (the Level 2 planner) belongs to Phase 7. Q3 and Q4 answer in plain text; the text travels inside
+# {"answer": ...} so every prompt has the same structured-output shape.
+
+QUESTION_TYPES = ("fact", "procedure", "diagram", "status", "calculation", "time_check", "across_tmps", "summary",
+                  "general_rule", "version_change", "out_of_scope")
+Q1_DETAILS = ("tmp_ref", "address", "road", "suburb", "tmd", "rp", "date_text", "date_iso", "time", "day_type",
+              "organisation", "entity", "field")
+
+_Q1_SYSTEM = """You classify questions about New Zealand Temporary Traffic Management Plans (TMPs)
+so the right tools can be called. You never answer the question.
+Question types (a question can have several):
+- fact:          a stored value about this TMP (dates, roads, RPs, speeds, AADT,
+                 parties, contacts, ticked boxes, risk ratings, stages, diagram titles)
+- procedure:     what to do, how something is done, what happens if… (contingency,
+                 monitoring, installation/removal, notification)
+- diagram:       anything shown on a traffic management diagram (signs, order of signs,
+                 cones, taper, safety zones, controllers, pedestrian routes, notes)
+- status:        approval, who has or hasn't signed, conflicts or errors in the document
+- calculation:   needs arithmetic on stored values (lengths, differences, durations,
+                 comparisons)
+- time_check:    whether something is allowed or in force at a date or time
+- across_tmps:   about several or all TMPs, or finding TMPs by road, date, organisation
+- summary:       an overview of this TMP or of one section
+- general_rule:  a general traffic management rule, not specific to this site
+- version_change: what changed between versions of this TMP
+- out_of_scope:  not answerable from TMPs (for example checks against official standards
+                 that are not loaded, or unrelated topics)"""
+
+_Q1_USER = """Today (NZ time): {now_nz}
+Current TMP in this session: {current_tmp}
+Conversation so far (last 3 turns): {recent_turns}
+Question: {question}
+Do this:
+1. Rewrite the question so it stands alone: replace "it", "that road", "the other one",
+   "same for weekends" with what they refer to. Keep the user's wording otherwise.
+2. List every question type it contains.
+3. Pull out details exactly as written. Dates and days: also give an ISO date if the
+   question names a day relative to today ("Wednesday", "tomorrow").
+4. If you are unsure of a type, set confidence to "low". Do not guess.
+Reply JSON:
+{{"standalone_question": "...",
+ "types": ["..."],
+ "confidence": "high|medium|low",
+ "details": {{"tmp_ref": null, "address": null, "road": null, "suburb": null,
+             "tmd": null, "rp": null, "date_text": null, "date_iso": null,
+             "time": null, "day_type": null, "organisation": null,
+             "entity": null, "field": null}}}}
+Examples:
+Q: "how long is the 30 zone"
+A: {{"standalone_question": "How long is the 30 km/h temporary speed limit zone?",
+    "types": ["fact", "calculation"], "confidence": "high",
+    "details": {{"entity": "speed_limit", "field": "length"}}}}
+Q: "is this one approved?"
+A: {{"standalone_question": "Is this TMP approved?", "types": ["status"], "confidence": "high"}}
+Q: "can the crew still be on site at 4pm on a school day"
+A: {{"standalone_question": "Is work allowed at 16:00 on a school day?",
+    "types": ["time_check"], "confidence": "high",
+    "details": {{"time": "16:00", "day_type": "school_day"}}}}
+Q: (previous turn asked about school-day hours) "and weekends?"
+A: {{"standalone_question": "What are the weekend work hours for this TMP?",
+    "types": ["fact"], "confidence": "high", "details": {{"entity": "shift_window", "day_type": "weekend"}}}}
+Q: "what signs does a westbound driver pass on the stop go plan"
+A: {{"standalone_question": "Which signs does a westbound driver pass, in order, on the Stop/Go diagram?",
+    "types": ["diagram"], "confidence": "high", "details": {{"tmd": "Stop Go"}}}}
+Q: "what happens if there's a spill"
+A: {{"standalone_question": "What must be done if there is a spill?", "types": ["procedure"], "confidence": "high"}}
+Q: "which TMD is TMD4"
+A: {{"standalone_question": "Which diagram does 'TMD4' refer to?", "types": ["fact", "status"],
+    "confidence": "high", "details": {{"tmd": "TMD4"}}}}
+Q: "is a 30m taper ok for a 50 road"
+A: {{"standalone_question": "Is a 30 m taper sufficient on a 50 km/h road?",
+    "types": ["out_of_scope", "diagram"], "confidence": "medium"}}
+Q: "any TMPs on sunrise ave next week by fulton hogan"
+A: {{"standalone_question": "Which TMPs on Sunrise Avenue by Fulton Hogan are active next week?",
+    "types": ["across_tmps"], "confidence": "high",
+    "details": {{"road": "Sunrise Avenue", "organisation": "Fulton Hogan", "date_text": "next week"}}}}"""
+
+_Q3_SYSTEM = """You answer questions about New Zealand Traffic Management Plans using ONLY the
+context below. Answer in plain text.
+Rules:
+1. Copy every number, time, date, RP, phone number and name exactly as it appears
+   in the context.
+2. Never do arithmetic. If a calculation is in the context, use its result and
+   show its working.
+3. Cite every fact as (form, section, page).
+4. If a value's status is "unverified", say it is unconfirmed.
+5. If a value has a conflict, give every version and where it appears. Do not choose.
+6. If something is blank in the document, say it is blank. Never fill it in.
+7. "Not ticked" means not ticked on the form; don't turn it into "no" unless the
+   form is a Yes/No question.
+8. Keep general standards separate from this site's facts, and say which is which.
+9. Describe diagrams in words: signs in order, positions, distances, with the TMD
+   and page.
+10. If the context doesn't answer the question, say so and say what is missing.
+11. Answer the question first, then the detail. Style for this user: {role_style}
+12. Questions about an image or drawing are answered from the image facts in the
+   context (text as printed, positions, order, distances and what each dimension
+   line runs between, appearance). Give positions as written there. Say what a
+   distance measures only as stated; separate what the image shows from what is
+   inferred, and list unreadable or missing items instead of guessing. If several
+   diagrams match, answer for each one and name its TMD and page.
+13. If the question asks for JSON or a list, put it inside the answer text."""
+
+_Q3_USER = """QUESTION: {standalone_question}
+{context}
+Reply JSON: {{"answer": "<the answer, plain text>"}}"""
+
+_Q4_SYSTEM = """Your previous answer broke the rules. Rewrite it using ONLY the context."""
+
+_Q4_USER = """Problems found by the checker:
+{problems}
+Previous answer: {answer}
+QUESTION: {standalone_question}
+{context}
+Rewrite the answer so every problem is fixed. Same rules as before.
+Reply JSON: {{"answer": "<the answer, plain text>"}}"""
+
+
+def q1_classify(question: str, now_nz: str, current_tmp: str | None, recent_turns: list[str]) -> ModelRequest:
+    turns = "\n".join(recent_turns[-3:]) or "(none)"
+    return _req("Q1", _Q1_SYSTEM, _Q1_USER.format(now_nz=now_nz, current_tmp=current_tmp or "none",
+                                                  recent_turns=turns, question=question))
+
+
+def q3_answer(standalone_question: str, context: str, role_style: str) -> ModelRequest:
+    return _req("Q3", _Q3_SYSTEM.format(role_style=role_style),
+                _Q3_USER.format(standalone_question=standalone_question, context=context))
+
+
+def q4_repair(problems: list[str], answer: str, standalone_question: str, context: str) -> ModelRequest:
+    return _req("Q4", _Q4_SYSTEM, _Q4_USER.format(problems="\n".join(f"- {p}" for p in problems), answer=answer,
+                                                  standalone_question=standalone_question, context=context))

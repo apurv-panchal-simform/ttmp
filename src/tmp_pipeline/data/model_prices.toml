@@ -1,0 +1,32 @@
+# Model prices for cost tracing, USD per 1 million tokens, keyed by the plan's model name (the deployment it maps to
+# via AZURE_OPENAI_CHAT_DEPLOYMENTS bills at the deployed model's price).
+# Source: Azure retail prices API, Global Standard, Australia East, as of 2026-10-13
+# (https://prices.azure.com/api/retail/prices). Check again when prices or deployments change.
+# A model missing here is traced with token usage but no cost.
+
+as_of = "2026-10-13"
+currency = "USD"
+
+[models.gpt-6-sol]
+input = 2.00
+output = 10.00
+
+[models.gpt-6-luna]
+input = 0.10
+output = 0.50
+
+[models."gpt-5.4"]
+input = 2.50
+output = 15.00
+
+[models."gpt-5.5"]
+input = 5.00
+output = 30.00
+
+[models."gpt-5.4-mini"]
+input = 0.75
+output = 4.50
+
+[models.text-embedding-3-large]
+input = 0.13
+output = 0.00

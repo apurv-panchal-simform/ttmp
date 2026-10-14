@@ -11,7 +11,9 @@ import os
 from dataclasses import dataclass
 
 from .. import logging_ as lg
-from ..transport import ServiceError, Transport, raise_for_status, urllib_transport, with_retry
+from .. import tracing
+from ..model import pricing
+from ..transport import ServiceError, Transport, raise_for_status, shared_keepalive, with_retry
 
 API_VERSION = "2024-10-21"
 
@@ -37,7 +39,7 @@ class AzureEmbeddings:
 
     def __init__(self, config: OpenAIConfig | None = None, transport: Transport | None = None, batch: int = 16):
         self.config = config or OpenAIConfig.from_env()
-        self.transport = transport or with_retry(urllib_transport)
+        self.transport = transport or with_retry(shared_keepalive())
         self.batch = batch
         self.dims = self.config.dims
 
@@ -49,9 +51,15 @@ class AzureEmbeddings:
         for i in range(0, len(texts), self.batch):
             chunk = texts[i:i + self.batch]
             body = json.dumps({"input": chunk, "dimensions": self.dims}).encode("utf-8")
-            status, _, data = self.transport("POST", url, headers, body)
-            raise_for_status(status, "embeddings", data)
-            items = sorted(json.loads(data)["data"], key=lambda d: d["index"])
+            with tracing.model_span("embeddings", self.model, "embed", **{"tmp.deployment": self.config.deployment,
+                                                                            "tmp.inputs": len(chunk)}) as sp:
+                status, _, data = self.transport("POST", url, headers, body)
+                raise_for_status(status, "embeddings", data)
+                reply = json.loads(data)
+                used = (reply.get("usage") or {}).get("prompt_tokens")
+                sp.set(**{"gen_ai.usage.input_tokens": used})
+                sp.usage(used, None, pricing.cost(self.model, used))
+            items = sorted(reply["data"], key=lambda d: d["index"])
             if len(items) != len(chunk):
                 raise ServiceError(f"embeddings: asked for {len(chunk)} vectors, got {len(items)}")
             out += [list(d["embedding"]) for d in items]

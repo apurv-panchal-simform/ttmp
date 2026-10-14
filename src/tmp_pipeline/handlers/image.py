@@ -12,15 +12,17 @@ from ..model import prompts
 from ..models import Element
 from ..records import Evidence, FieldValue, Record, Status
 from ..vocab import Flag, Route
+from .image_full import read_picture
 from .imageread import ImageReading, read_image
 
 
 def figure_record(ctx: HandlerContext, stamp, element: Element, reading: ImageReading, *, phash: str | None,
-                  reused_from: str | None = None, kind: str = "figure") -> Record:
+                  reused_from: str | None = None, kind: str = "figure", full: dict | None = None) -> Record:
     """A ``figure`` record from one reading (shared by plain figures and the figures drawn on diagram sheets)."""
     fields: dict[str, FieldValue] = {}
     flags = []
-    data: dict = {"phash": phash, "reused_from": reused_from, "notes": reading.notes, "models": reading.models}
+    data: dict = {"phash": phash, "reused_from": reused_from, "notes": reading.notes, "models": reading.models,
+                  "full": full}
     if reading.status == "read" and reading.result is not None:
         r = reading.result
         ok = reading.all_verified and bool(reading.check and reading.check.ok)
@@ -54,19 +56,21 @@ class FigureHandler(BaseHandler):
         return HandlerResult()
 
     def finish(self, ctx: HandlerContext) -> HandlerResult:
-        stamp = ctx.stamp(self, {k: prompts.PROMPT_VERSIONS[k] for k in ("X7",)}, prompts.MODELS["X7"])
-        seen: list[tuple[str, ImageReading, str]] = []            # (phash, reading, first element id)
+        stamp = ctx.stamp(self, {k: prompts.PROMPT_VERSIONS[k] for k in ("X7", "X13")}, prompts.MODELS["X7"])
+        seen: list[tuple[str, ImageReading, str, dict | None]] = []      # (phash, reading, first element id, full read)
         res = HandlerResult()
         for el in self._figures:
             phash = el.metadata.get("phash")                 # of the picture's own pixels, set by the diagram stage
-            twin = next(((r, eid) for h, r, eid in seen if phash and hamming(h, phash) <= ctx.cfg.diagrams.near_dup_bits), None)
+            twin = next(((r, eid, f) for h, r, eid, f in seen if phash and hamming(h, phash) <= ctx.cfg.diagrams.near_dup_bits),
+                        None)
             if twin is not None:
-                reading, reused = twin[0], twin[1]
+                reading, reused, full = twin
             else:
                 reading, reused = read_image(ctx, el, el.bbox_pt), None
+                full = read_picture(ctx, el, el.bbox_pt, scope="a photo or figure in a form of the TMP")
                 if phash:
-                    seen.append((phash, reading, el.element_id))
-            rec = figure_record(ctx, stamp, el, reading, phash=phash, reused_from=reused)
+                    seen.append((phash, reading, el.element_id, full))
+            rec = figure_record(ctx, stamp, el, reading, phash=phash, reused_from=reused, full=full)
             res.records.append(rec)
             if rec.flags:
                 res.element_updates[el.element_id] = ElementUpdate(tuple(rec.flags))

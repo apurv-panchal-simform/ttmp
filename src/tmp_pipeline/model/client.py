@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .. import logging_ as lg
+from .. import tracing
 from ..cache import CacheMiss, FileCache, stable_key
 from ..errors import PipelineError
 
@@ -123,11 +124,20 @@ class ReplayClient:
 
 def ask(model: ModelClient | None, request: ModelRequest) -> dict | None:
     """The parsed answer, or None when there is no model or it cannot answer (the caller then marks unverified)."""
-    if model is None:
-        lg.log_event("model", "model_skipped", prompt=request.prompt_id, reason="no model configured")
-        return None
-    try:
-        return model.complete(request).data
-    except ModelUnavailableError as e:
-        lg.log_event("model", "model_skipped", prompt=request.prompt_id, reason=str(e))
-        return None
+    with tracing.span(f"model {request.prompt_id}", **{"tmp.prompt_id": request.prompt_id,
+                                                         "tmp.prompt_version": request.prompt_version,
+                                                         "gen_ai.request.model": request.model}) as sp:
+        if model is None:
+            sp.set(**{"tmp.outcome": "skipped", "langfuse.observation.level": "WARNING",
+                      "langfuse.observation.status_message": "no model configured (--model off): safe answer instead"})
+            lg.log_event("model", "model_skipped", prompt=request.prompt_id, reason="no model configured")
+            return None
+        try:
+            resp = model.complete(request)
+        except ModelUnavailableError as e:
+            sp.set(**{"tmp.outcome": "skipped", "tmp.reason": str(e)[:200], "langfuse.observation.level": "WARNING",
+                      "langfuse.observation.status_message": str(e)[:200]})
+            lg.log_event("model", "model_skipped", prompt=request.prompt_id, reason=str(e))
+            return None
+        sp.set(**{"tmp.outcome": "answered", "tmp.cached": resp.cached})
+        return resp.data

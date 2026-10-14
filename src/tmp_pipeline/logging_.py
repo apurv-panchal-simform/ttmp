@@ -116,14 +116,18 @@ def log_exception(stage: str, event: str, exc: BaseException, **fields: Any) -> 
 
 @contextmanager
 def stage(name: str, **fields: Any) -> Iterator[None]:
-    """Log stage_started / stage_finished (with duration), or stage_failed with the traceback, then re-raise."""
+    """Log stage_started / stage_finished (with duration), or stage_failed with the traceback, then re-raise.
+    Each stage is also a tracing span (a no-op unless tracing is configured)."""
+    from . import tracing
     log_event(name, "stage_started", **fields)
     t0 = time.perf_counter()
-    try:
-        yield
-    except BaseException as exc:
-        log_exception(name, "stage_failed", exc, duration_ms=round((time.perf_counter() - t0) * 1000))
-        raise
+    with tracing.span(f"stage {name}", "chain", **{"tmp.doc_id": get_doc_id() or None, "tmp.run_id": get_run_id() or None}) as sp:
+        try:
+            yield
+        except BaseException as exc:
+            sp.error(exc)
+            log_exception(name, "stage_failed", exc, duration_ms=round((time.perf_counter() - t0) * 1000))
+            raise
     log_event(name, "stage_finished", duration_ms=round((time.perf_counter() - t0) * 1000))
 
 

@@ -1,0 +1,1467 @@
+{
+ "document": "KTS 26-1581",
+ "status": "draft",
+ "today": "2026-10-14T09:00:00+13:00",
+ "notes": [
+  "Draft image question set: the user's 35 image questions keyed to TMD-02 (Shoulder Closure, p.21) from the page render, and questions generated for every sheet from the code facts (diagrams/describe.py), checked only on values code knows exactly. Needs a second keying.",
+  "Extra fields: row = question group; sheet = the diagram asked about; must_not = strings a correct answer never contains (values not on that sheet); flags json + json_keys = the answer holds a JSON object with these keys."
+ ],
+ "questions": [
+  {
+   "id": "img01",
+   "row": "basic",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Describe the image in 3-5 sentences.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure",
+    "35 m ("
+   ],
+   "answer": [
+    "Sunrise Avenue",
+    "bus stop"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img02",
+   "row": "basic",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What type of drawing or plan is shown in the image?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [
+    "traffic management"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img03",
+   "row": "basic",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What road name is visible in the diagram?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "\"SUNRISE AVENUE - L1\"",
+    "\"GULL LANE - LV\""
+   ],
+   "answer": [
+    "Sunrise Avenue",
+    "Gull Lane"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img04",
+   "row": "basic",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What types of traffic signs and road facilities are visible?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "warning sign \"SHOULDER CLOSED\"",
+    "end of works sign \"WORKS END\""
+   ],
+   "answer": [
+    "SHOULDER CLOSED",
+    "WORKS END",
+    "bus stop"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img05",
+   "row": "basic",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What is the apparent purpose of the temporary traffic management arrangement?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [
+    "shoulder"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img06",
+   "row": "ocr",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Transcribe the bus-stop relocation notice exactly as far as legible.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Bus Stop near House No. 55 Sunrise Avenue will be closed"
+   ],
+   "answer": [
+    "Bus Stop near House No. 55 Sunrise Avenue will be closed",
+    "temporary bus stop at House No. 33 Sunrise Avenue"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img07",
+   "row": "ocr",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which house numbers are mentioned in the notice?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "House No. 55",
+    "House No. 33"
+   ],
+   "answer": [
+    "55",
+    "33"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img08",
+   "row": "ocr",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): List all visible distance measurements shown in the image.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "35 m (",
+    "10 m (",
+    "25 m ("
+   ],
+   "answer": [
+    "35 m",
+    "25 m",
+    "10 m"
+   ],
+   "pages": [
+    21
+   ],
+   "must_not": [
+    "40 m",
+    "30 m",
+    "15 m"
+   ]
+  },
+  {
+   "id": "img09",
+   "row": "ocr",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What text appears on the temporary traffic signs?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "TEMPORARY BUS STOP 250M AHEAD",
+    "\"SHOULDER CLOSED\""
+   ],
+   "answer": [
+    "SHOULDER CLOSED",
+    "WORKS END",
+    "250"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img10",
+   "row": "ocr",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Extract all readable labels, annotations, road names, and measurements from the image.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "RP0.625",
+    "#55",
+    "#33"
+   ],
+   "answer": [
+    "SUNRISE AVENUE",
+    "GULL LANE",
+    "0.625",
+    "0.495",
+    "55",
+    "33",
+    "35 m"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img11",
+   "row": "ocr",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which text or annotations are too small or unclear to read confidently?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "broken font"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img12",
+   "row": "spatial",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Describe the arrangement of traffic signs and the bus-stop symbol from left to right.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "From left to right across the plan:"
+   ],
+   "answer": [
+    "SHOULDER CLOSED",
+    "WORKS END"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img13",
+   "row": "spatial",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Where are the temporary traffic signs positioned relative to the bus-stop symbol?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "pictogram: bus stop sign"
+   ],
+   "answer": [
+    "bus stop"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img14",
+   "row": "spatial",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which side of the road contains the temporary bus-stop arrangement?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Layout of diagram TMD-02"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img15",
+   "row": "spatial",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): How are the distance measurements distributed along the road?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "the line runs from the start of the Work Area"
+   ],
+   "answer": [
+    "35 m",
+    "work area"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img16",
+   "row": "spatial",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Where is the bus-stop relocation notice positioned relative to the road?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "notice \"Bus Stop near House No. 55"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img17",
+   "row": "spatial",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify the approximate positions of the major elements in the diagram.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "of the plan"
+   ],
+   "answer": [
+    "work area"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img18",
+   "row": "domain",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What temporary traffic-management change is communicated by the plan?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [
+    "shoulder",
+    "bus stop"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img19",
+   "row": "domain",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Why might the existing bus stop need to be closed temporarily?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Bus Stop near House No. 55"
+   ],
+   "answer": [
+    "work"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img20",
+   "row": "domain",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Where does the notice indicate that passengers should use the temporary bus stop?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "temporary bus stop at House No. 33"
+   ],
+   "answer": [
+    "33"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img21",
+   "row": "domain",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What information should a traffic-management engineer verify before implementing this arrangement?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Notes:"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img22",
+   "row": "domain",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What potential safety risks could arise if the temporary signs are positioned incorrectly?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "From left to right across the plan:"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img23",
+   "row": "domain",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What additional information would be required to verify compliance with the applicable traffic-management standards?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img24",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Summarize the proposed temporary traffic arrangement.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "35 m ("
+   ],
+   "answer": [
+    "Sunrise Avenue",
+    "bus stop",
+    "35 m"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img25",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Extract all visible distances and associate each measurement with its approximate location.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "35 m (top-centre of the plan)"
+   ],
+   "answer": [
+    "35 m",
+    "25 m",
+    "10 m"
+   ],
+   "pages": [
+    21
+   ],
+   "must_not": [
+    "40 m",
+    "30 m",
+    "15 m"
+   ]
+  },
+  {
+   "id": "img26",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify the bus-stop closure and the alternative location mentioned in the notice.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "House No. 33"
+   ],
+   "answer": [
+    "55",
+    "33"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img27",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Separate explicitly stated facts from assumptions or inferences.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img28",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What information cannot be reliably extracted from this image alone?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img29",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify all references to the bus stop, road name, house numbers, measurements, and sign placements.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "#55",
+    "35 m ("
+   ],
+   "answer": [
+    "Sunrise Avenue",
+    "55",
+    "33",
+    "35 m",
+    "bus stop"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img30",
+   "row": "rag",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which annotations should an engineer review when verifying the temporary bus-stop arrangement?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "House No. 33"
+   ],
+   "answer": [
+    "33"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img31",
+   "row": "structured",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Return the extracted information as structured JSON with fields for road_name, bus_stop_notice, house_numbers, traffic_signs, distance_measurements, and other_annotations.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "35 m ("
+   ],
+   "answer": [
+    "Sunrise Avenue",
+    "55",
+    "33"
+   ],
+   "pages": [
+    21
+   ],
+   "flags": [
+    "json"
+   ],
+   "json_keys": [
+    "road_name",
+    "bus_stop_notice",
+    "house_numbers",
+    "traffic_signs",
+    "distance_measurements",
+    "other_annotations"
+   ]
+  },
+  {
+   "id": "img32",
+   "row": "structured",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): For each extracted measurement, provide its value, unit if visible, and approximate location in the image.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "35 m (top-centre of the plan)"
+   ],
+   "answer": [
+    "35 m",
+    "25 m",
+    "10 m"
+   ],
+   "pages": [
+    21
+   ],
+   "must_not": [
+    "40 m",
+    "30 m",
+    "15 m"
+   ]
+  },
+  {
+   "id": "img33",
+   "row": "structured",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): For each identified traffic sign, describe its visible appearance and approximate location. Do not guess its official meaning if the symbol is unclear.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "warning sign \"SHOULDER CLOSED\""
+   ],
+   "answer": [
+    "SHOULDER CLOSED",
+    "WORKS END"
+   ],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img34",
+   "row": "structured",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which answers can be supported directly by visible evidence in the image?",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "Shoulder Closure"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "img35",
+   "row": "structured",
+   "sheet": "TMD-02",
+   "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify any unreadable, ambiguous, or missing information. Do not invent values or descriptions.",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "context": [
+    "broken font"
+   ],
+   "answer": [],
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-01-title-block",
+   "row": "generated",
+   "question": "On TMD-01 (No Parking Plan, page 20), who drew the sheet, what is its scale and what is its date?",
+   "context": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "answer": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "sheet": "TMD-01",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    20
+   ]
+  },
+  {
+   "id": "gen-tmd-01-notes",
+   "row": "generated",
+   "question": "On TMD-01 (No Parking Plan, page 20), what notes are written on the sheet?",
+   "context": [
+    "\"No parking\" signs and cones are to be installed along the work area and at House No. 33 Sunrise Avenue for the Temporary Bus Stop.",
+    "Cones will be installed at 5 m centres to deter parking in the no parking area.",
+    "Residents are to be advised of the proposed no parking area."
+   ],
+   "answer": [
+    "\"No"
+   ],
+   "sheet": "TMD-01",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    20
+   ]
+  },
+  {
+   "id": "gen-tmd-01-houses",
+   "row": "generated",
+   "question": "On TMD-01 (No Parking Plan, page 20), which house numbers are shown?",
+   "context": [
+    "house #55",
+    "house #33"
+   ],
+   "answer": [
+    "55",
+    "33"
+   ],
+   "sheet": "TMD-01",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    20
+   ]
+  },
+  {
+   "id": "gen-tmd-01-inset",
+   "row": "generated",
+   "question": "On TMD-01 (No Parking Plan, page 20), what is shown in the inset?",
+   "context": [
+    "house #33"
+   ],
+   "answer": [
+    "33"
+   ],
+   "sheet": "TMD-01",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    20
+   ]
+  },
+  {
+   "id": "gen-tmd-02-distances",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), list every distance written on the drawing and what each one runs between.",
+   "context": [
+    "10 m (",
+    "25 m (",
+    "35 m ("
+   ],
+   "answer": [
+    "10 m",
+    "25 m",
+    "35 m"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-dist-35",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), what does the 35 m dimension line run between?",
+   "context": [
+    "35 m (top-centre of the plan): the line runs from the start of the Work Area (shaded area)"
+   ],
+   "answer": [
+    "35"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-title-block",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), who drew the sheet, what is its scale and what is its date?",
+   "context": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "answer": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-legend",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), what does the legend show?",
+   "context": [
+    "Legend:"
+   ],
+   "answer": [
+    "Work Area",
+    "Safety Zone",
+    "Cone",
+    "Pedestrian fence",
+    "Pedestrian Route",
+    "Temporary Pram Ramp"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-notes",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), what notes are written on the sheet?",
+   "context": [
+    "1M minimum lateral safety zone",
+    "10M Longitudinal safety zone and 10M taper length",
+    "All cones in taper at 2.5M spacings"
+   ],
+   "answer": [
+    "1M"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-houses",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), which house numbers are shown?",
+   "context": [
+    "house #55",
+    "house #33"
+   ],
+   "answer": [
+    "55",
+    "33"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-signs-ltr",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), what signs are shown, from left to right?",
+   "context": [
+    "From left to right across the plan:"
+   ],
+   "answer": [
+    "SHOULDER CLOSED"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-02-inset",
+   "row": "generated",
+   "question": "On TMD-02 (Shoulder Closure, page 21), what is shown in the inset?",
+   "context": [
+    "house #33"
+   ],
+   "answer": [
+    "33"
+   ],
+   "sheet": "TMD-02",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    21
+   ]
+  },
+  {
+   "id": "gen-tmd-03-distances",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), list every distance written on the drawing and what each one runs between.",
+   "context": [
+    "10 m (",
+    "15 m (",
+    "25 m (",
+    "30 m (",
+    "35 m (",
+    "40 m ("
+   ],
+   "answer": [
+    "10 m",
+    "15 m",
+    "25 m",
+    "30 m",
+    "35 m",
+    "40 m"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-dist-10",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what does the 10 m dimension line run between?",
+   "context": [
+    "10 m (top-centre of the plan): the line runs from the pictogram: blue directional arrow sign"
+   ],
+   "answer": [
+    "10"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-dist-35",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what does the 35 m dimension line run between?",
+   "context": [
+    "35 m (top-centre of the plan): the line runs from the start of the cone run (9 cones)"
+   ],
+   "answer": [
+    "35"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-dist-15",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what does the 15 m dimension line run between?",
+   "context": [
+    "15 m (middle-left of the plan): the line runs from the school zone \"SCHOOL ZONE 40 8:10 - 8:45 AM 3:00 - 3:20 PM SCHOOL DAYS COVER\""
+   ],
+   "answer": [
+    "15"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-title-block",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), who drew the sheet, what is its scale and what is its date?",
+   "context": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "answer": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-legend",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what does the legend show?",
+   "context": [
+    "Legend:"
+   ],
+   "answer": [
+    "Work Area",
+    "Safety Zone",
+    "Cone",
+    "Pedestrian fence",
+    "Pedestrian Route",
+    "Temporary Pram Ramp"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-notes",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what notes are written on the sheet?",
+   "context": [
+    "1M minimum lateral safety zone",
+    "10M Longitudinal safety zone and 30M taper length",
+    "All cones in taper at 2.5M spacings"
+   ],
+   "answer": [
+    "1M"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-houses",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), which house numbers are shown?",
+   "context": [
+    "house #55",
+    "house #33"
+   ],
+   "answer": [
+    "55",
+    "33"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-signs-ltr",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what signs are shown, from left to right?",
+   "context": [
+    "From left to right across the plan:"
+   ],
+   "answer": [
+    "SCHOOL ZONE"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-03-inset",
+   "row": "generated",
+   "question": "On TMD-03 (Lane Diversion, page 22), what is shown in the inset?",
+   "context": [
+    "house #33"
+   ],
+   "answer": [
+    "33"
+   ],
+   "sheet": "TMD-03",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "gen-tmd-04-distances",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), list every distance written on the drawing and what each one runs between.",
+   "context": [
+    "10 m (",
+    "15 m (",
+    "25 m (",
+    "30 m (",
+    "35 m (",
+    "40 m ("
+   ],
+   "answer": [
+    "10 m",
+    "15 m",
+    "25 m",
+    "30 m",
+    "35 m",
+    "40 m"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-dist-10",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), what does the 10 m dimension line run between?",
+   "context": [
+    "10 m (top-centre of the plan): the line runs from the pictogram: keep-right arrow sign"
+   ],
+   "answer": [
+    "10"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-dist-35",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), what does the 35 m dimension line run between?",
+   "context": [
+    "35 m (top-centre of the plan): the line runs from the start of the Work Area (shaded area)"
+   ],
+   "answer": [
+    "35"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-title-block",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), who drew the sheet, what is its scale and what is its date?",
+   "context": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "answer": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-legend",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), what does the legend show?",
+   "context": [
+    "Legend:"
+   ],
+   "answer": [
+    "Work Area",
+    "Safety Zone",
+    "Cone",
+    "Pedestrian fence",
+    "Pedestrian Route",
+    "Temporary Pram Ramp"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-notes",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), what notes are written on the sheet?",
+   "context": [
+    "1M minimum lateral safety zone",
+    "10M Longitudinal safety zone and 30M taper length",
+    "All cones in taper at 2.5M spacings"
+   ],
+   "answer": [
+    "1M"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-houses",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), which house numbers are shown?",
+   "context": [
+    "house #55",
+    "house #33"
+   ],
+   "answer": [
+    "55",
+    "33"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-signs-ltr",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), what signs are shown, from left to right?",
+   "context": [
+    "From left to right across the plan:"
+   ],
+   "answer": [
+    "SCHOOL ZONE"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-04-inset",
+   "row": "generated",
+   "question": "On TMD-04 (Stop Go, page 23), what is shown in the inset?",
+   "context": [
+    "house #33"
+   ],
+   "answer": [
+    "33"
+   ],
+   "sheet": "TMD-04",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "gen-tmd-05-title-block",
+   "row": "generated",
+   "question": "On TMD-05 (Unattended Worksite, page 24), who drew the sheet, what is its scale and what is its date?",
+   "context": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "answer": [
+    "Dimple Manipon",
+    "N.T.S",
+    "16/09/2026"
+   ],
+   "sheet": "TMD-05",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    24
+   ]
+  },
+  {
+   "id": "gen-tmd-05-legend",
+   "row": "generated",
+   "question": "On TMD-05 (Unattended Worksite, page 24), what does the legend show?",
+   "context": [
+    "Legend:"
+   ],
+   "answer": [
+    "Unattended Work Area"
+   ],
+   "sheet": "TMD-05",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    24
+   ]
+  },
+  {
+   "id": "gen-tmd-05-notes",
+   "row": "generated",
+   "question": "On TMD-05 (Unattended Worksite, page 24), what notes are written on the sheet?",
+   "context": [
+    "When using steel plates, they must:",
+    "Remain in place for no more than 7 days or else RCA/Corridor Manager will be notified if extension is needed",
+    "Be securely fixed to prevent displacement."
+   ],
+   "answer": [
+    "When"
+   ],
+   "sheet": "TMD-05",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    24
+   ]
+  },
+  {
+   "id": "gen-tmd-05-houses",
+   "row": "generated",
+   "question": "On TMD-05 (Unattended Worksite, page 24), which house numbers are shown?",
+   "context": [
+    "house #55"
+   ],
+   "answer": [
+    "55"
+   ],
+   "sheet": "TMD-05",
+   "types": [
+    "diagram"
+   ],
+   "rules": true,
+   "pages": [
+    24
+   ]
+  }
+ ]
+}

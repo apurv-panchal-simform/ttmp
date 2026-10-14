@@ -38,6 +38,63 @@ def _text(rec: Record) -> str:
                      for k, fv in rec.fields.items() if fv.value is not None or fv.raw)
 
 
+_ID = re.compile(r"\s*[(\[]?(?:IDs?:\s*)?(?:p\d+:[a-z_]+:\d+(?:,\s*)?)+[)\]]?")
+
+
+_PLAIN_LABELS = {"dimension_label", "rp_label", "road_label", "house_label", "place_label", "callout"}
+
+
+def _full_lines(full: object) -> list[str]:
+    """Extra lines from a complete picture read (X13): what it shows, its text, what could not be read."""
+    if not isinstance(full, dict):
+        return []
+
+    def mark(x: dict) -> str:
+        return "" if x.get("ok") else " (unconfirmed)"
+    texts = full.get("texts") or {}
+    out = [f"{head}: {texts[k]['text']}{mark(texts[k])}" for k, head in
+           (("drawing_type", "Type of picture"), ("purpose", "Purpose"), ("pedestrians", "Pedestrians"),
+            ("vehicles", "Vehicles")) if k in texts]
+    out += [f"Shows ({x.get('where') or 'position not stated'}): {x.get('looks_like')}{mark(x)}"
+            for x in full.get("items") or [] if x.get("looks_like")]
+    out += [f"Could not be read: {u.get('what')} ({u.get('where')})" for u in full.get("unreadable") or []]
+    out += [f"Inferred, not read from the picture: {x}" for x in full.get("inferred") or []]
+    return out
+
+
+def _sheet_summary(summary: object) -> list[str]:
+    """Lines for the sheet overview from the model's reading of the layout (X8). Each claim that did not pass the
+    checks is marked unconfirmed; the symbol ids it cites are dropped from the text (they stay in the record)."""
+    if isinstance(summary, str):
+        return [f"Summary: {summary}"] if summary else []
+    if not isinstance(summary, dict):
+        return []
+    if summary.get("text"):
+        return [f"Summary: {summary['text']}"]
+    claims = summary.get("claims") or {}
+
+    def mark(c: dict) -> str:
+        return "" if c.get("ok") else " (unconfirmed)"
+
+    def clean(text: object) -> str:
+        return _ID.sub("", str(text or "")).strip().rstrip(".")
+    lines: list[str] = []
+    for c in claims.get("layout") or []:
+        if clean(c.get("statement")):
+            lines.append(f"Layout: {clean(c.get('statement'))}.{mark(c)}")
+    for c in claims.get("approaches") or []:
+        text = ". ".join(x for x in (clean(c.get("direction")), clean(c.get("notes"))) if x)
+        if text:
+            lines.append(f"Approach: {text}.{mark(c)}")
+    for c in claims.get("pedestrians") or []:
+        if clean(c.get("statement")):
+            lines.append(f"Pedestrians: {clean(c.get('statement'))}.{mark(c)}")
+    for u in summary.get("unclear") or []:
+        if clean(u):
+            lines.append(f"Not clear from the drawing: {clean(u)}.")
+    return lines
+
+
 class Builder:
     def __init__(self, facts: Facts, records: RecordStore, store: ElementStore, cfg: Config, ctx: DocContext):
         self.facts, self.records, self.store, self.cfg, self.ctx = facts, records, store, cfg, ctx
@@ -476,20 +533,21 @@ class Builder:
                 lines.append("Route positions: " + ", ".join(f"RP {x:.3f}" for x in rps))
             if d.get("callouts"):
                 lines.append("Callouts: " + " | ".join(str(c) for c in d["callouts"]))
+            places = list(dict.fromkeys(str(s["value"]).title() for s in syms if s.get("kind") == "place_label" and s.get("value")
+                                    and not self.cfg.diagrams.describe.skip_place.search(str(s["value"]))))
+            if places:
+                lines.append("Places named: " + "; ".join(places))
+            houses = list(dict.fromkeys(str(s["value"]) for s in syms if s.get("kind") == "house_label" and s.get("value")))
+            if houses:
+                lines.append("House numbers shown: " + ", ".join(houses))
             lines.append("Drawn items: " + ", ".join(f"{k.replace('_', ' ')} {n}" for k, n in sorted(counts.items())))
-            if isinstance(d.get("summary"), dict) and d["summary"].get("text"):
-                lines.append(f"Summary: {d['summary']['text']}")
-            elif isinstance(d.get("summary"), str) and d["summary"]:
-                lines.append(f"Summary: {d['summary']}")
-            for sid, cap in (d.get("captions") or {}).items():
-                if isinstance(cap, dict) and cap.get("caption"):
-                    lines.append(f"Symbol {sid}: {cap['caption']}" + ("" if cap.get("status") == "verified" else " (unconfirmed)"))
-            if not d.get("summary"):
-                lines.append("(No spatial summary yet: the sheet has not been read by a model.)")
-            meta = {"tmd_ids": [sh.tmd_id], "linked_sheets": [sh.tmd_id], "rp_values": rps,
-                    "symbols": [{k: s.get(k) for k in ("id", "kind", "value", "rp", "road", "bbox")} for s in syms]}
+            lines.append("More on this diagram: all its text, positions and order of items, every distance and what its "
+                         "line runs between, the title block, and a description of the image.")
+            meta = {"tmd_ids": [sh.tmd_id], "linked_sheets": [sh.tmd_id], "rp_values": rps}
             overview = self.emit("sheet_overview", sh.tmd_id, path, [sh.page], "\n".join(lines), records=[rec],
                                  meta=meta, splittable=False)[0]
+            self._sheet_figures(sh, rec, overview)
+            self._sheet_image_facts(sh, rec, overview, path)
             ordered = [s for s in syms if s.get("order") is not None]
             approaches: dict[str, list[dict]] = {}
             for s in ordered:
@@ -520,11 +578,144 @@ class Builder:
                           "Notes:\n" + "\n".join(str(n) for n in d["notes"]), records=[rec],
                           meta={"tmd_ids": [sh.tmd_id], "linked_sheets": [sh.tmd_id]}, parent=overview.chunk_id)
 
+    def _sheet_image_facts(self, sh, rec: Record, overview: Chunk, path: list[str]) -> None:
+        """What the image of a sheet shows, for image questions: text, layout, distances, details and description.
+        Code facts (``diagrams.describe``) are stated plainly; model statements (X13, X8) carry "(unconfirmed)" unless
+        they passed their checks."""
+        d = rec.data
+        facts = (d.get("describe") or {}).get("facts")
+        if not facts:
+            return
+        read = (d.get("describe") or {}).get("read") or {}
+        on = f"diagram {sh.tmd_id} {sh.title.title()} (page {sh.page})"
+        meta = {"tmd_ids": [sh.tmd_id], "linked_sheets": [sh.tmd_id]}
+        items = {i["id"]: i for i in facts["items"]}
+        seen = {x["item_id"]: x for x in read.get("items") or [] if x.get("item_id") != "new"}
+        readings = {g["printed"]: g for g in read.get("garbled") or []}
+
+        def mark(x: dict) -> str:
+            return "" if x.get("ok") else " (unconfirmed)"
+
+        def shown(text: str) -> str:
+            g = readings.get(text)
+            if g and g.get("reads_as"):
+                return f'"{g["reads_as"]}" (printed in a broken font as "{text}"){mark(g)}'
+            return f'"{text}" (printed in a broken font; not read)' if self.cfg.diagrams.describe.garbled.search(text) else f'"{text}"'
+
+        def emit(ctype: str, lines: list[str]) -> None:
+            if len(lines) > 1:
+                self.emit(ctype, sh.tmd_id, path + [ctype.replace("sheet_", "").title()], [sh.page], "\n".join(lines),
+                          records=[rec], meta=meta, parent=overview.chunk_id)
+
+        def look(iid: str) -> str:
+            x = seen.get(iid)
+            if not x or items.get(iid, {}).get("kind") in _PLAIN_LABELS:
+                return ""
+            bits = [f"looks like {x['looks_like']}" if x.get("looks_like") else "",
+                    f"meaning: {x['meaning']}" if x.get("meaning") and x.get("meaning") != "unclear" else "",
+                    f"side of road: {x['road_side']}" if x.get("road_side") and x.get("road_side") != "unclear" else ""]
+            bits = [b for b in bits if b]
+            return f"; {'; '.join(bits)}{mark(x)}" if bits else ""
+
+        # all text, as printed, grouped by where it is
+        lines = [f"Text printed on {on}, as printed, with where it is:"]
+        for t in facts["texts"]:
+            lines.append(f"- [{t['where']}, {t['location']}] {shown(t['text'])}")
+        emit("sheet_text", lines)
+
+        # positions and order
+        lines = [f"Layout of {on}. Positions are on the plan: top/middle/bottom and left/centre/right.",
+                 "From left to right across the plan:"]
+        for n, iid in enumerate(facts["left_to_right"], 1):
+            i = items[iid]
+            road = f"; on {i['road']}" if i.get("road") else ""
+            rp = f"; RP {float(i['rp']):.3f}" if isinstance(i.get("rp"), int | float) else ""
+            lines.append(f"{n}) {i['label']} ({i['location']}{road}{rp}){look(iid)}")
+        for where, head in (("inset", "Inside the inset (a separate close-up view):"),
+                            ("figure", "Inside the pictures beside the plan:")):
+            group = [i for i in facts["items"] if i["where"] == where]
+            if group:
+                lines.append(head)
+                lines += [f"- {i['label']} ({i['location']}){look(i['id'])}" for i in group]
+        for kind, head in (("callout", "Notices on the plan"), ("road_label", "Road names written on the plan"),
+                           ("place_label", "Places named on the plan")):
+            group = [i for i in facts["items"] if i["kind"] == kind and i["where"] == "plan"]
+            if group:
+                lines.append(f"{head}: " + "; ".join(f"{i['label']} ({i['location']})" for i in group))
+        lines += [f"Seen in the image ({x.get('where') or 'position not stated'}): {x.get('looks_like')}{mark(x)}"
+                  for x in read.get("items") or [] if x.get("item_id") == "new" and x.get("looks_like")]
+        for r in read.get("relations") or []:
+            a, b = items.get(str(r.get("a"))), items.get(str(r.get("b")))
+            if a and b and r.get("relation"):
+                lines.append(f"{a['label']} is {r['relation']} {b['label']}{mark(r)}")
+        emit("sheet_layout", lines)
+
+        # distances
+        measures = {str(x.get("item_id")): x for x in read.get("distances") or []}
+        lines = [f"Distances drawn on {on}, in order along the drawing (left to right, then the upright ones), with "
+                 "what each dimension line runs between (from the drawing's geometry):"]
+        for x in facts["distances"]:
+            v = f"{x['value']:g} {x['unit']}" if isinstance(x.get("value"), int | float) else "a distance (value unreadable)"
+            ends = (f"runs from {x['start'] or 'a point with nothing drawn at it'} to {x['end'] or 'a point with nothing drawn at it'}"
+                    if x.get("start") or x.get("end") else "its ends do not meet a drawn item")
+            nxt = [f"follows straight on from the {items[x['before']]['label'].replace('distance label ', '')} line"
+                   if x.get("before") in items else "",
+                   f"continues into the {items[x['after']]['label'].replace('distance label ', '')} line"
+                   if x.get("after") in items else ""]
+            m = measures.get(x["id"])
+            what = f"; measures: {m['measures']}{mark(m)}" if m and m.get("measures") else ""
+            lines.append(f"- {v} ({x['location']}): the line {ends}"
+                         + "".join(f"; {b}" for b in nxt if b) + what)
+        emit("sheet_distances", lines)
+
+        # title block and legend
+        tb = [t for t in facts["texts"] if t["where"] == "title block"]
+        lines = [f"Title block and legend of {on}:"]
+        lines += [f"- {shown(t['text'])}" for t in tb]
+        if d.get("legend"):
+            lines.append("Legend: " + "; ".join(f"{x.get('swatch')} = {x.get('meaning')}" for x in d["legend"]))
+        emit("sheet_details", lines)
+
+        # what the image shows (model)
+        texts = read.get("texts") or {}
+        lines = [f"What the image of {on} shows, as read by a model (statements that failed a check are marked "
+                 "unconfirmed):"]
+        for key, head in (("description", "Description"), ("drawing_type", "Type of drawing"), ("purpose", "Purpose"),
+                          ("pedestrians", "Pedestrians"), ("vehicles", "Vehicles")):
+            if key in texts:
+                lines.append(f"{head}: {texts[key]['text']}{mark(texts[key])}")
+        lines += _sheet_summary(d.get("summary"))
+        lines += [f"Could not be read: {u.get('what')} ({u.get('where')})" for u in read.get("unreadable") or []]
+        lines += [f"Inferred, not read from the image: {x}" for x in read.get("inferred") or []]
+        if len(lines) == 1:
+            lines.append("(No model has read this image yet: only the text, layout, distances and title block are known.)")
+        emit("sheet_image", lines)
+
+    def _sheet_figures(self, sh, rec: Record, overview: Chunk) -> None:
+        """The pictures drawn beside a diagram (pedestrian options, notices) as figure chunks tied to its TMD."""
+        seen: set[str] = set()
+        for n, f in enumerate(rec.data.get("figures") or []):
+            desc = str(f.get("description") or "").strip()
+            kind = str(f.get("kind") or "figure")
+            key = f"{sh.tmd_id}-{n}-{slugify(desc[:40])}"
+            if not desc or "logo" in kind.lower() or desc in seen:
+                continue
+            seen.add(desc)
+            title = str(f.get("title") or "").strip()
+            lines = [f"Image: {kind}", f"Shown on {pages_text([sh.page])}, beside diagram {sh.tmd_id}"]
+            if title.isascii() and title:
+                lines.append(f"Title: {title}")
+            lines.append(f"Description: {desc}" + ("" if f.get("verified") else " (unconfirmed)"))
+            lines += _full_lines(f.get("full"))
+            self.emit("figure_caption", key, ["Diagrams", f"{sh.tmd_id} {sh.title.title()}", "Figure"], [sh.page], "\n".join(lines),
+                      records=[rec], meta={"tmd_ids": [sh.tmd_id], "linked_sheets": [sh.tmd_id]},
+                      parent=overview.chunk_id, splittable=False)
+
     def figures(self) -> None:
         groups: dict[str, list[Fact]] = {}
         for f in self.facts.of("figure"):
             rec = next((self.record(s.record_id) for s in f.sources if self.record(s.record_id)), None)
-            key = str((rec.data.get("reused_from") or rec.data.get("phash")) if rec else f.fact_id)
+            key = str(rec.data.get("phash") or rec.data.get("reused_from") if rec else f.fact_id)
             groups.setdefault(key, []).append(f)
         for key, fs in groups.items():
             recs = [r for r in (self.record(s.record_id) for f in fs for s in f.sources) if r is not None]
@@ -543,9 +734,10 @@ class Builder:
                          and f.fields["description"].value), None)
             lines.append(f"Description: {value_text(desc, self.facts)}" if desc else
                          "Description: none yet (the image has not been read by a model)")
+            lines += _full_lines(main.data.get("full") if main else None)
             self.emit("figure_caption", key[:16], self.path_for(main) + ["Figure"] if main else ["Figure"],
                       [p for f in fs for p in f.pages()], "\n".join(lines), facts=fs, records=recs,
-                      meta={"tmd_ids": sorted({t for f in fs for t in f.links.get("tmd", [])})}, splittable=False)
+                      meta={"tmd_ids": sorted({t for f in fs for t in f.links.get("tmd", [])})})
 
     def standard_rules(self) -> None:
         pages = {p for p, z in self.ctx.zones.items() if z == "generic_standard"}

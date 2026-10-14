@@ -14,6 +14,7 @@ from ..model.client import ask
 from ..model.validators import agree_x9, check_x8, check_x9, check_x10, x9_key
 from ..models import Element
 from ..vocab import SymbolKind
+from .image_full import read_picture
 from .imageio import crop_master, master_path, open_image, png_bytes, words_in
 from .imageread import read_image
 
@@ -91,7 +92,9 @@ def read_figures(ctx: HandlerContext, element: Element, sheet: SheetModel) -> li
         reading = read_image(ctx, element, r.bbox, heading=sheet.title or "", title=r.label or "")
         item = {"region": r.bbox, "title": r.label, "status": reading.status, "notes": reading.notes, "reused": False,
                 "kind": (reading.result or {}).get("kind"), "description": (reading.result or {}).get("description"),
-                "items": reading.items, "verified": reading.all_verified and bool(reading.check and reading.check.ok)}
+                "items": reading.items, "verified": reading.all_verified and bool(reading.check and reading.check.ok),
+                "full": read_picture(ctx, element, r.bbox, title=r.label or "",
+                                     scope="a picture drawn beside a traffic management diagram")}
         if key:
             seen[key] = item
         out.append(item)

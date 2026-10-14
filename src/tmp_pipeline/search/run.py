@@ -13,8 +13,10 @@ import argparse
 import sys
 from pathlib import Path
 
+from .. import tracing
 from ..cache import CacheMiss, FileCache
 from ..chunks.model import ChunkSet
+from ..chunks.summarise import fill_embedding_text
 from ..config import load_config
 from ..errors import PipelineError
 from ..model.embeddings import CachedEmbeddings
@@ -50,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--index", default=INDEX)
     p.add_argument("--embed-live", action="store_true")
     a = ap.parse_args(argv)
+    tracing.configure()            # exports spans to Langfuse only when LANGFUSE_PUBLIC_KEY/SECRET_KEY are set
     try:
         idx = SearchIndex(SearchConfig.from_env(a.index))
         if a.cmd == "create":
@@ -58,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         d = Path(a.doc_dir)
         chunks = ChunkSet.load_jsonl(d / "chunks.jsonl")
+        fill_embedding_text(chunks.chunks, load_config())
         vectors = stored_vectors(d, chunks, a.embed_live)
         res = idx.push(chunks, vectors, dict(load_config().chunks.glossary))
         print(f"pushed {res['uploaded']} chunks ({len(vectors)} with vectors), deleted {res['deleted']}")

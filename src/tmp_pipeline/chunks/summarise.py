@@ -57,6 +57,15 @@ def embedding_text(ch: Chunk, cfg: Config) -> str:
     return "\n\n".join(p for p in (ch.text(), ch.summary or "", "\n".join(terms)) if p)
 
 
+def fill_embedding_text(chunks: list[Chunk], cfg: Config) -> list[Chunk]:
+    """The embedding text is not stored in chunks.jsonl (it is header, content, summary and glossary terms, a third of
+    the file): rebuild it, exactly as it was embedded, wherever a vector is made or looked up."""
+    for ch in chunks:
+        if not ch.embedding_text:
+            ch.embedding_text = embedding_text(ch, cfg)
+    return chunks
+
+
 def embed(chunks: list[Chunk], cfg: Config, client: CachedEmbeddings | None) -> int:
     """Set every chunk's embedding text; with a client, store its vector and record the cache key it is under."""
     for ch in chunks:

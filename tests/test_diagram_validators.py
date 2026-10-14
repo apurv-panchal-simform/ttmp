@@ -96,7 +96,7 @@ def test_x9_items_need_cited_words_and_both_reads_must_agree():
 
 def test_prompt_builders_are_deterministic_and_use_the_right_models_and_images():
     a = prompts.x8_sheet_summary(b"o", b"m", "04", "STOP GO", "green = Work Area", "s1 | x", "n")
-    assert len(a.images) == 2 and a.model == "gpt-6-sol" and a.key() == prompts.x8_sheet_summary(
+    assert len(a.images) == 2 and a.model == prompts.MODELS["X8"] and a.key() == prompts.x8_sheet_summary(
         b"o", b"m", "04", "STOP GO", "green = Work Area", "s1 | x", "n").key()
     first = prompts.x7_read_image(b"i", "h", "n", "t", [("w1", "RHB")])
     second = prompts.x7_read_image(b"i", "h", "n", "t", [("w1", "RHB")], second_read=True)
@@ -105,3 +105,35 @@ def test_prompt_builders_are_deterministic_and_use_the_right_models_and_images()
     assert r2.model == "gpt-5.5" and "w1" not in r2.user and "(none)" in r2.user      # the second read sees no word list
     assert prompts.x9_read_region(b"i", "plan tile", "L", [("w1", "30 m")]).user.count("w1: 30 m") == 1
     assert set(prompts.PROMPT_VERSIONS) >= {"X7", "X8", "X9", "X10"}
+
+
+def test_numbers_in_symbol_text_never_break_on_times_and_ratios():
+    from tmp_pipeline.model.validators import _numbers, check_x12
+    assert _numbers("NO PARKING 8:10 AM, 1:2:3, 8.10.2, 1,200") == {8.0, 10.0, 1.0, 2.0, 3.0, 8.1, 1200.0}
+    assert check_x12({"summary": "Open 8:10 to 9:00."}, "Open 8:10 to 9:00.")[1] == []       # X12 still keeps 8:10 whole
+    assert check_x12({"summary": "Open 8:10."}, "Open 8:15.")[1]
+
+
+def test_symbol_ids_cited_in_a_summary_are_not_claimed_numbers():
+    from tmp_pipeline.model.validators import check_x8
+    symbols = {"p22:vector_symbol:11": {"text": "30", "rp": 0.465}, "p22:vector_symbol:12": {"text": "50"}}
+    result = {"approaches": [{"direction": "west", "signs_in_order": ["p22:vector_symbol:12", "p22:vector_symbol:11"],
+                              "notes": "50 then 30 (IDs: p22:vector_symbol:12, p22:vector_symbol:11)."}],
+              "layout": [], "pedestrians": []}
+    chk = check_x8(result, symbols)
+    assert chk.verified and chk.claims["approaches"][0]["problems"] == []
+    result["approaches"][0]["notes"] = "40 then 30"
+    assert not check_x8(result, symbols).verified
+
+
+def test_a_sheet_summary_reaches_the_chunk_with_unchecked_claims_marked():
+    from tmp_pipeline.chunks.build import _sheet_summary
+    summary = {"claims": {"layout": [{"ok": True, "statement": "Cones run along the footpath (p1:vector_symbol:3)."},
+                                      {"ok": False, "statement": "A walkway is shown."}],
+                          "approaches": [{"ok": False, "direction": "From the west", "notes": "50 first (IDs: p1:vector_symbol:1)."}],
+                          "pedestrians": []},
+               "unclear": ["Sign order cannot be read. [p1:vector_symbol:4]"]}
+    assert _sheet_summary(summary) == [
+        "Layout: Cones run along the footpath.", "Layout: A walkway is shown. (unconfirmed)",
+        "Approach: From the west. 50 first. (unconfirmed)", "Not clear from the drawing: Sign order cannot be read."]
+    assert _sheet_summary(None) == [] and _sheet_summary({"text": "T"}) == ["Summary: T"]

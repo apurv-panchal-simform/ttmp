@@ -4,6 +4,7 @@ import re
 from reportlab.lib.utils import ImageReader
 
 from helpers import header_footer, label, noise_image, plate, sheet_page, speed_disc
+from tmp_pipeline.model import prompts
 from tmp_pipeline.model.client import FakeClient
 from tmp_pipeline.records import Status
 from tmp_pipeline.run import run
@@ -53,12 +54,12 @@ def test_x10_captions_pictograms_and_x8_summary_is_verified_when_grounded(make_p
     rec = _record(res)
     assert [c["caption"] for c in rec.data["captions"].values()] == ["worker sign"]
     assert list(rec.data["captions"].values())[0]["status"] == "verified"
-    assert rec.data["summary"]["verified"] is True and rec.data["summary"]["model"] == "gpt-6-sol"
+    assert rec.data["summary"]["verified"] is True and rec.data["summary"]["model"] == prompts.MODELS["X8"]
     x8 = next(c for c in model.calls if c.prompt_id == "X8")
     assert len(x8.images) == 2 and "TEMPORARY" in x8.user and "green = Work Area" in x8.user
     sym = next(e for e in res.store.of_type(ElementType.VECTOR_SYMBOL) if e.metadata.get("caption"))
     assert sym.metadata["caption"]["caption"] == "worker sign"
-    assert rec.produced_by.prompt_versions["X8"] == "1.0" and rec.produced_by.model == "gpt-6-sol"
+    assert rec.produced_by.prompt_versions["X8"] == "1.0" and rec.produced_by.model == prompts.MODELS["X8"]
 
 
 def test_an_invented_symbol_or_number_in_the_summary_makes_those_claims_unverified(make_pdf, tmp_path):
@@ -141,7 +142,7 @@ def test_a_failed_figure_check_gets_a_second_read_that_must_agree_and_pass(make_
     model = FakeClient({"X7": route})
     res = run(make_pdf("fig.pdf", [_figure_page(1)]), tmp_path, model=model)
     rec = res.records.of_kind("figure")[0]
-    assert calls == ["gpt-6-sol", "gpt-5.5"]
+    assert calls == [prompts.MODELS["X7"], prompts.READ2_MODEL]
     status = {n["value"]: n["status"] for n in rec.data["numbers"]}
     assert status == {100: "verified", 77: "unverified"} and rec.status == Status.UNVERIFIED
     assert rec.data["second_read"] is not None

@@ -1,0 +1,9 @@
+# Model deployments for AI-CoE-rg / ai-coe-tmp-aue (Australia East). Chosen 2026-10-13 from `provision.sh check`.
+# Deployment names equal the model names in prompts.MODELS, so AZURE_OPENAI_CHAT_DEPLOYMENTS stays empty.
+# deployment              model-name              version     sku             capacity  plan-name
+gpt-6-sol                 gpt-6-sol               2026-09-22  GlobalStandard  50        -
+gpt-6-luna                gpt-6-luna              2026-09-22  GlobalStandard  30        -
+gpt-5.4                   gpt-5.4                 2026-03-05  GlobalStandard  30        -
+gpt-5.5                   gpt-5.5                 2026-04-24  GlobalStandard  20        -
+gpt-5.4-mini              gpt-5.4-mini            2026-03-17  GlobalStandard  20        -
+text-embedding-3-large    text-embedding-3-large  1           GlobalStandard  100       -

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import logging_ as lg
+from . import tracing
 from .catalog import load_catalog
 from .chunks.model import ChunkSet
 from .chunks.stage import build_chunks, summarise_and_embed
@@ -30,8 +31,8 @@ from .intake import IntakeResult, compute_doc_id, doc_dir, intake, mark_done
 from .layers.reader import read_layers
 from .layers.render import Renderer
 from .layers.to_elements import build_elements
-from .model.client import ReplayClient
 from .model.embeddings import EmbeddingClient, ReplayEmbeddings
+from .model.live import MODES, model_client
 from .models import ElementStore, SchemaError, atomic_write_text
 from .records import RecordStore
 from .report import build_report
@@ -171,21 +172,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--template", default=None)
     ap.add_argument("--force", action="store_true", help="re-run even if this file was already processed")
     ap.add_argument("--skip-render", action="store_true")
-    ap.add_argument("--model", choices=("off", "replay"), default="off",
-                    help="off: no model calls (default); replay: answer X2-X10 from recorded fixtures, offline")
-    ap.add_argument("--model-fixtures", default=None, help="folder of recorded answers for --model replay")
+    ap.add_argument("--model", choices=MODES, default="off",
+                    help="off: no model calls (default); replay: recorded answers, offline; live: Azure OpenAI "
+                         "(AZURE_OPENAI_ENDPOINT/KEY), recorded to --model-fixtures when given")
+    ap.add_argument("--model-fixtures", default=None, help="replay: recorded answers; live: where to record them")
     ap.add_argument("--gold", default=None, help="gold JSON file: score the run and add the result to report.md")
     ap.add_argument("--embed", choices=("off", "replay"), default="off",
                     help="off: chunks without vectors (default); replay: vectors from recorded fixtures, offline")
     ap.add_argument("--embed-fixtures", default=None, help="folder of recorded vectors for --embed replay")
     a = ap.parse_args(argv)
+    tracing.configure()            # exports spans to Langfuse only when LANGFUSE_PUBLIC_KEY/SECRET_KEY are set
     if a.model == "replay" and not a.model_fixtures:
         ap.error("--model replay needs --model-fixtures")
     if a.embed == "replay" and not a.embed_fixtures:
         ap.error("--embed replay needs --embed-fixtures")
-    model = ReplayClient(a.model_fixtures) if a.model == "replay" else None
     embedder = ReplayEmbeddings(a.embed_fixtures) if a.embed == "replay" else None
     try:
+        model = model_client(a.model, a.model_fixtures, Path(a.out) / "_model_cache" if a.model == "live" else None)
         res = run(a.pdf, a.out, a.template, a.force, not a.skip_render, model=model, gold=a.gold, embedder=embedder)
     except (PipelineError, ConfigError, SchemaError, FileNotFoundError) as e:
         print(f"error: {e}", file=sys.stderr)

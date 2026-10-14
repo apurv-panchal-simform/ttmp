@@ -298,6 +298,9 @@ class SummaryCheck:
     claims: dict[str, list[dict]] = field(default_factory=dict)      # section -> [{"ok", "problems", ...}]
 
 
+_SYMBOL_ID = re.compile(r"p\d+:[a-z_]+:\d+")          # the ids the model cites (p22:vector_symbol:11): not claimed numbers
+
+
 def check_x8(result: dict | None, symbols: dict[str, dict], extra_text: str = "") -> SummaryCheck:
     """An X8 summary may only cite existing symbols and only use numbers the sheet's own extraction contains."""
     if not isinstance(result, dict):
@@ -316,7 +319,7 @@ def check_x8(result: dict | None, symbols: dict[str, dict], extra_text: str = ""
             p.append("no symbol ids cited")
         else:
             p += [f"symbol {i!r} does not exist" for i in ids if str(i) not in symbols]
-        p += [f"number {n:g} is not on the sheet" for n in sorted(_numbers(text) - allowed)]
+        p += [f"number {n:g} is not on the sheet" for n in sorted(_numbers(_SYMBOL_ID.sub(" ", text)) - allowed)]
         return p
 
     for a in result.get("approaches") or []:
@@ -365,7 +368,7 @@ def check_x11(result: dict | None, sheet_ids: list[str]) -> tuple[str | None, li
     return tid, ([] if conf == "high" else ["medium confidence"])
 
 
-_NUM = re.compile(r"\d+(?:[.,:]\d+)*")
+_SUMMARY_NUM = re.compile(r"\d+(?:[.,:]\d+)*")          # whole figures like 8:10 or 1,200 (not _NUM, which feeds float())
 
 
 def check_x12(result: dict | None, chunk_text: str) -> tuple[str | None, list[str]]:
@@ -375,9 +378,117 @@ def check_x12(result: dict | None, chunk_text: str) -> tuple[str | None, list[st
     summary = _squash(str(result.get("summary") or ""))
     if not summary:
         return None, ["empty summary"]
-    have = set(_NUM.findall(chunk_text))
-    extra = [n for n in _NUM.findall(summary) if n not in have]
+    have = set(_SUMMARY_NUM.findall(chunk_text))
+    extra = [n for n in _SUMMARY_NUM.findall(summary) if n not in have]
     if extra:
         return None, [f"the summary has numbers the chunk does not: {', '.join(extra)}"]
     return summary, []
 
+
+
+@dataclass
+class Classification:
+    standalone_question: str
+    types: list[str]
+    confidence: str                 # high | medium | low
+    details: dict[str, str] = field(default_factory=dict)
+    problems: list[str] = field(default_factory=list)
+
+
+def check_q1(result: dict | None, question: str, known_types: tuple[str, ...],
+             known_details: tuple[str, ...]) -> Classification | None:
+    """Q1's reading of a question, with unknown types dropped and details limited to the known keys. Anything
+    doubtful lowers the confidence, and low confidence sends the question to the baseline recipe."""
+    if not isinstance(result, dict):
+        return None
+    problems: list[str] = []
+    got_types = result.get("types")
+    raw_types: list = got_types if isinstance(got_types, list) else []
+    types = [t for t in dict.fromkeys(str(t) for t in raw_types) if t in known_types]
+    dropped = [str(t) for t in raw_types if str(t) not in known_types]
+    if dropped:
+        problems.append(f"unknown question type(s) dropped: {', '.join(dropped)}")
+    conf = str(result.get("confidence") or "low")
+    if conf not in ("high", "medium", "low"):
+        problems.append(f"unknown confidence {conf!r}")
+        conf = "low"
+    if not types:
+        problems.append("no question type")
+        conf = "low"
+    got_details = result.get("details")
+    raw_details: dict = got_details if isinstance(got_details, dict) else {}
+    details = {k: _squash(str(v)) for k, v in raw_details.items()
+               if k in known_details and v not in (None, "", "null")}
+    standalone = _squash(str(result.get("standalone_question") or "")) or question
+    return Classification(standalone, types, conf, details, problems)
+
+
+def garbled_match(printed: str, reading: str) -> float:
+    """Share of the plain (ASCII) letters of a broken-font line that a reading keeps in the same order. Broken fonts
+    swap some glyphs (``PĞ.Ğstrgan`` for ``Pedestrian``) but keep the rest, so a true reading keeps most of them."""
+    from difflib import SequenceMatcher
+    plain = "".join(ch.lower() for ch in printed if ch.isascii() and ch.isalpha())
+    read = "".join(ch.lower() for ch in reading if ch.isascii() and ch.isalpha())
+    if not plain:
+        return 0.0
+    kept = sum(b.size for b in SequenceMatcher(None, plain, read, autojunk=False).get_matching_blocks())
+    return kept / len(plain)
+
+
+@dataclass
+class ImageReadCheck:
+    items: list[dict] = field(default_factory=list)          # {item_id, ..., ok, problems}
+    distances: list[dict] = field(default_factory=list)
+    relations: list[dict] = field(default_factory=list)
+    garbled: list[dict] = field(default_factory=list)        # {id, printed, reads_as, match, ok}
+    texts: dict[str, dict] = field(default_factory=dict)     # description, purpose, pedestrians ... -> {text, ok, problems}
+    unreadable: list[dict] = field(default_factory=list)
+    inferred: list[str] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
+
+
+def check_x13(result: dict | None, item_ids: set[str], distance_ids: set[str], allowed: set[float],
+              garbled: dict[str, str], min_match: float) -> ImageReadCheck:
+    """X13 (image read): every ID must exist (distances must be distance labels), every number must be on the sheet,
+    a reading of broken-font text must keep its plain letters. A failing statement is kept, marked, never edited."""
+    out = ImageReadCheck()
+    if not isinstance(result, dict):
+        out.problems.append("no usable answer")
+        return out
+
+    def nums(text: object) -> list[str]:
+        return [f"number {n:g} is not on the sheet" for n in sorted(_numbers(_SYMBOL_ID.sub(" ", str(text or ""))) - allowed)]
+
+    for key in ("description", "drawing_type", "purpose", "pedestrians", "vehicles"):
+        text = _squash(str(result.get(key) or ""))
+        if text:
+            p = nums(text)
+            out.texts[key] = {"text": text, "ok": not p, "problems": p}
+    for it in result.get("items") or []:
+        if not isinstance(it, dict):
+            continue
+        iid = str(it.get("item_id") or "new")
+        p = [] if iid == "new" or iid in item_ids else [f"item {iid!r} does not exist"]
+        p += nums(" ".join(str(it.get(k) or "") for k in ("looks_like", "meaning", "where")))
+        out.items.append({**it, "item_id": iid, "ok": not p, "problems": p})
+    for d in result.get("distances") or []:
+        if not isinstance(d, dict):
+            continue
+        p = [] if str(d.get("item_id")) in distance_ids else [f"{d.get('item_id')!r} is not a distance on the sheet"]
+        p += nums(d.get("measures"))
+        out.distances.append({**d, "ok": not p, "problems": p})
+    for r in result.get("relations") or []:
+        if not isinstance(r, dict):
+            continue
+        p = [f"item {x!r} does not exist" for x in (r.get("a"), r.get("b")) if str(x) not in item_ids]
+        out.relations.append({**r, "ok": not p, "problems": p})
+    for g in result.get("garbled_text") or []:
+        if not isinstance(g, dict) or str(g.get("id")) not in garbled:
+            continue
+        printed, reads = garbled[str(g["id"])], _squash(str(g.get("reads_as") or ""))
+        m = garbled_match(printed, reads) if reads else 0.0
+        out.garbled.append({"id": str(g["id"]), "printed": printed, "reads_as": reads, "match": round(m, 2),
+                            "ok": bool(reads) and m >= min_match and not nums(reads)})
+    out.unreadable = [u for u in result.get("unreadable") or [] if isinstance(u, dict)]
+    out.inferred = [_squash(str(x)) for x in result.get("inferred") or [] if str(x).strip()]
+    return out

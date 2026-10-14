@@ -1,5 +1,6 @@
 .venv/
 out/
+out_live/
 .env
 __pycache__/
 .pytest_cache/
@@ -9,3 +10,4 @@ __pycache__/
 *.pdf
 TMP Combined Plan.html
 tests/data/sample.pdf
+.env.*

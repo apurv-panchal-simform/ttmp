@@ -3,10 +3,11 @@
 Extraction, chunking and retrieval for New Zealand Temporary Traffic Management Plans. The design is in
 `TMP Combined Plan.html` (not committed; it lives next to the repo). The build has 8 phases: reading, handlers,
 diagrams and images, facts, chunking and index, retrieval L0+1, planner, operations. This repo is at
-**Phase 5: Chunking and index** (22 chunk types, size policy, chunk text and metadata, lineage check, X12 summaries
-with a number guard, embeddings interface, optional Azure AI Search index), built on Phase 4 (facts), Phase 3
-(diagrams and images), Phase 2 (handlers) and Phase 1 (reading). Model and embedding calls (X2-X12, embeddings) are
-wired as prompts, validators and client interfaces only; no live call has been made.
+**Phase 6: Retrieval Level 0 + 1** (resolve the TMP, rules + Q1 classifier, recipes per question type, read-only tools
+including `calculate` and `time_check`, context assembly, Q3 answer, code answer check, one Q4 repair, fixed
+responses, question test set), built on Phase 5 (chunking and index), Phase 4 (facts), Phase 3 (diagrams and images),
+Phase 2 (handlers) and Phase 1 (reading). A live Azure OpenAI chat client exists (`--model live`), but no live model,
+embedding or AI Search call has been made yet: everything is tested with fakes, replay fixtures and fake transports.
 
 ```
 uv sync
@@ -27,6 +28,14 @@ uv run tmp-pipeline-review apply out/sha256-... corrections.json   # reviewer co
 
 # Phase 5 on a finished run: rebuild chunks.jsonl + lineage.json (chunker change or reviewer correction)
 uv run tmp-pipeline-chunks out/sha256-...                     # prints added / removed / changed / corrected chunks
+
+# Phase 6: ask questions about the processed TMPs (out/), and run the question test set
+uv run tmp-pipeline-ask --out out --tmp "KTS 26-1581" -v "How long is the 30 km/h zone?"
+uv run tmp-pipeline-ask --out out --role site            # interactive session; empty line or "exit" ends it
+uv run tmp-pipeline-qa tests/data/gold/sample.questions.json --out out [--json results.json]
+#   --model off (default: code-built safe answers) | replay --model-fixtures DIR | live [--model-fixtures DIR]
+#   live needs AZURE_OPENAI_ENDPOINT/KEY (+ AZURE_OPENAI_CHAT_DEPLOYMENTS="gpt-6-sol=<deployment>,..." when the
+#   deployment names differ) and records every answer to --model-fixtures so replay repeats the run offline
 
 # Azure AI Search (optional: AZURE_SEARCH_ENDPOINT/KEY; --embed-live also AZURE_OPENAI_ENDPOINT/KEY)
 uv run tmp-pipeline-index create
@@ -206,6 +215,148 @@ confirmed or corrected it; the original is kept under `review`). Checks never bl
 Approval: a block is signed only when its signature cell has content (a date alone is not a signature); struck blocks
 are not applicable; Form 3 is required only when a temporary speed limit is requested. The sample is
 `partially_signed` (designer and checker signed; activity manager, RCA primary and Form 3 not).
+
+## Retrieval: how a question is answered (Phase 6, plan part 5)
+
+`retrieval/` is core (no optional imports). `Retriever.ask(question, session, user)`:
+
+1. **Resolve** (`resolve.py`): TMP reference by pattern (conflict aliases such as KTS 26-1580 resolve too), else
+   house number + road, road or suburb against the stored TMPs (`Ave` -> `Avenue` via `[facts.name_abbreviations]`),
+   else the session's TMP. Several matches -> ask back; a TMP the user can't read -> "isn't available to you".
+2. **Classify** (`classify.py`): the rule cues in `[retrieval.rules]`; Q1 only when no rule or several rules match,
+   or for a follow-up. Without a model, the rules' reading (or the previous turn's) is used; nothing -> baseline.
+3. **Recipes** (`recipes.py`): fixed tools per type, run in parallel. Tools (`tools.py`, `hybrid.py`, `calc.py`,
+   `timecheck.py`) return every value with status, raw text, unit, pages, a citation (form, section, page) and its
+   conflicts. `search_chunks` is BM25 + optional vectors, reciprocal rank fusion, site before generic, boilerplate
+   collapsed, detail boost, then expansion (parent table, linked sheet, siblings, form section, other side of a
+   conflict). `calculate` evaluates named stored values only (literal numbers are rejected) and shows the working;
+   which values to combine is data (`[retrieval.calculations]`). `time_check` uses the shift windows, TSL hours,
+   stage hours and works dates, with `data/nz_calendar.toml` (2026-27 terms and holidays; `calendar = ""` switches
+   it off and every window is returned with "not known").
+4. **Context** (`context.py`): facts, calculations, status, chunks, conflicts on the values used; budget in tokens,
+   chunks are cut first.
+5. **Answer** (`answer.py`): Q3 (role style from `[retrieval.role_styles]`), or without a model the code-built safe
+   answer from the same context.
+6. **Check** (`check.py`): numbers, times, dates, RPs and phones in the context; cited pages in the context; unverified
+   values called unconfirmed; conflicting values give their versions; generic or struck text labelled. One Q4 repair,
+   then the safe answer.
+
+Backends: `LocalStore` (run folders) and `LocalSearch` by default; `db/reader.py: PgFactsStore` reads the same facts
+from PostgreSQL and `search/query.py: AzureSearch` runs the candidate step in AI Search (both optional, same tools).
+
+Question test set (`tests/data/gold/sample.questions.json`, draft, 46 questions over every row of plan 5.2): offline
+the deterministic measures (rule types, context holds the needed facts and pages, no number missing from the context,
+fixed responses) must be 100% and are; answer measures need `--model live` or `replay`.
+
+## Azure resources and tracing
+
+`deploy/azure/provision.sh` sets up resource group **AI-CoE-rg** (Simform-Dev, Australia East): a Foundry (AIServices)
+resource `ai-coe-tmp-aue` with project `tmp-pipeline` and the model deployments in `deploy/azure/models.tsv`. Steps:
+`check` (read-only, lists the region's model catalogue), `create`, `deploy`, `env` (writes `~/.config/tmp-pipeline/.env.azure`, outside the repo, mode 600,
+git-ignored, keeps any `LANGFUSE_*` lines). All steps are idempotent. On this network Python needs
+`SSL_CERT_FILE=~/.azure-docker-ca/combined-ca.crt` (TLS inspection).
+
+Tracing goes to **Langfuse Cloud** over OpenTelemetry (OTLP/HTTP, `<LANGFUSE_HOST>/api/public/otel`): `uv sync --extra
+tracing`, put `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and `LANGFUSE_HOST` in `~/.config/tmp-pipeline/.env.azure`, then
+`set -a; . ~/.config/tmp-pipeline/.env.azure; set +a`. Each question is a trace `tmp.ask` (session per conversation, tags = answer kind and
+question types, metadata = answer method, TMP, role) with `tool <name>` children (search is a retriever) and
+`model <prompt>` spans whose live calls are generations (`<prompt> <model>`, e.g. `Q3 gpt-6-sol`: model, input messages, output, token usage and
+cost). Cost comes from `src/tmp_pipeline/data/model_prices.toml` (USD per 1M tokens, Azure retail prices; another file
+via `TMP_MODEL_PRICES`). Langfuse sums it per trace, and `tmp.ask` also carries the question's total
+(`tmp.cost_usd`, tokens, model calls); `tmp-pipeline-qa` prints the run's total and per-question cost.
+Extraction stages are `stage <name>` spans. Prompt, context and answer text is sent only with `TMP_TRACE_CONTENT=1`
+(set in the env file by choice: it includes names and phone numbers from the TMPs); keys never.
+
+### Image descriptions (live run)
+
+`tmp-pipeline tests/data/sample.pdf --out out_live --model live --model-fixtures out_live/_fixtures` reads the images
+with gpt-6-luna (X3, X7, X8, X9, X10; second reads stay on gpt-5.5; the plan names gpt-6-sol, changed by decision).
+Where it lands: `out_live/<doc>/records.json` (every reading with status, second read and model), `facts.json`, and
+`chunks.jsonl`: `figure_caption` chunks (the forms photo once, plus each picture beside a diagram, tied to its TMD),
+and the TMD `sheet_overview` chunks (layout, approaches, pedestrians, symbol captions; a claim that failed a check is
+marked "(unconfirmed)"). Every model answer is recorded in `out_live/_fixtures` (replay: `--model replay`, free) and
+cached in `out_live/_model_cache`, so a re-run only pays for calls that changed. Sample cost: about $0.34 (260 calls).
+Cosmos is only updated by `tmp-pipeline-cosmos upload out_live/<doc>`.
+
+### Image questions (any question about a diagram or picture)
+
+Every informative image is read completely at extraction time and stored as text, so image questions are answered
+from chunks, with no image at answer time.
+- Code facts, `diagrams/describe.py`, no model: every item with a plain label and a 3x3 position, the plan's items
+  from left to right, every distance with the items at the two ends of its dimension line (from the drawing's
+  geometry), and all text as printed (broken-font lines flagged). Settings are in `[diagrams.describe]`.
+- Model read X13, gpt-6-luna, `handlers/image_full.py`: the whole sheet, then tiles, and each picture. It gives the
+  description, type, purpose, appearance and road side per item, what each distance measures, relations, pedestrian
+  and vehicle routes, readings of broken-font text, what is unreadable, and what is inferred. `check_x13` checks
+  that every ID exists and every number is on the sheet, and that a broken-font reading keeps the printed letters.
+  Failures are kept and marked "(unconfirmed)".
+- Chunks per sheet: `sheet_text`, `sheet_layout`, `sheet_distances`, `sheet_details` (title block, legend) and
+  `sheet_image` (description), next to the shorter `sheet_overview`, the sign schedules and notes. Figure chunks gain
+  the full picture read.
+- Retrieval: the diagram rule covers image words, a named sheet pulls all its chunks, and Q3 rule 12 answers from
+  the image facts. The context budget is 10000 tokens.
+- Test set `tests/data/gold/sample.image_questions.json` (draft): 35 questions keyed to TMD-02, plus 35 generated for
+  every sheet from the code facts. Live, 2026-10-14: offline gates 70/70 and answers 61/70 (user's 35: 34/35); after
+  the conflict-check fix, 7 of the 9 misses pass. About $0.027 per question. p95 is about 40 s with repairs (large
+  contexts; streaming, Phase 8).
+
+### Answer model
+
+Answers (Q3) are written by gpt-6-luna without thinking (`prompts.REASONING`); an answer that fails the code check
+is repaired (Q4) by gpt-6-sol. Measured 2026-10-14 through Cosmos:
+- Text set: 44/46, against 43/46 with gpt-6-sol. About $0.002 per question including repairs; p95 6.7 s.
+- Image set: 65/70, against about 68/70 with gpt-6-sol. About $0.004 per question; p95 14 s.
+
+### Speed
+
+Measured 2026-10-13 from this machine to Australia East, through the Zscaler proxy (gpt-6-sol, Cosmos backend):
+
+| | before | now |
+|---|---|---|
+| a question in a running session | 6-16 s | 2-4.5 s (search about 1 s, Q3 1.5-3.5 s) |
+| one-shot command (start-up included) | 10-16 s | about 9 s: 1 s opening Cosmos, about 3 s loading chunks the first time, about 1 s sending traces at exit |
+
+What changed: HTTPS connections to Azure OpenAI are kept open and shared (`transport.KeepAliveTransport`; a new TLS
+handshake through the proxy costs about 1.5 s per call), the first one is opened in the background at start-up;
+`reasoning_effort` defaults to `low` (`AZURE_OPENAI_REASONING_EFFORT`: none | low | medium | high, empty for the
+model's default: medium spent about 500 hidden reasoning tokens and 3-4 s more on Q3 with the same answers); the
+Cosmos keyword query runs while the question is embedded; chunks are read back without their embedding text.
+For demos ask in one session (`tmp-pipeline-cosmos ask --out out --tmp "KTS 26-1581" --model live`, no question:
+type questions at the `>` prompt) so start-up is paid once. Streaming the answer (Phase 8) brings first words under
+the 3 s target.
+
+## Where chunks and embeddings live: Cosmos DB (free tier)
+
+Instead of Azure AI Search (Free tier already used in the subscription; Basic ~US$97/month), chunks and their
+text-embedding-3-large vectors are stored in **Azure Cosmos DB for NoSQL, free tier** (`ai-coe-tmp-cosmos`, Australia
+East; database `tmp`, container `chunks`, partition `/doc_id`, 1000 RU/s = the free allowance, DiskANN vector index on
+`/vector` and full-text index on `/text`). Nothing is billed while usage stays within 1000 RU/s and 25 GB; add no
+other throughput to the account. The sample takes 2.4 MB.
+
+```
+uv sync --extra cosmos --extra tracing
+set -a; . ~/.config/tmp-pipeline/.env.azure; set +a   # AZURE_COSMOS_* written by deploy/azure/provision.sh env
+uv run tmp-pipeline-cosmos upload out/sha256-...          # embeds only new/changed chunks; deletes stale ones
+uv run tmp-pipeline-cosmos ask --out out --tmp "KTS 26-1581" -v "What happens if there's a spill?"
+uv run tmp-pipeline-cosmos qa tests/data/gold/sample.questions.json --out out
+```
+
+Search runs a BM25 query (`FullTextContainsAny` + `ORDER BY RANK FullTextScore`; without the filter Cosmos scores every
+chunk alike) and a vector query (`VectorDistance`), and fuses the two rankings with RRF in code; ranking rules and
+expansion are shared with the local backend. Facts are still read from `out/<doc>/facts.json` (PostgreSQL per plan
+3.4 when hosted). The `cosmos` package is optional; core never imports it.
+
+## Known gaps (Phase 6)
+
+- No live Q1/Q3/Q4 call has run: the plan 7.2 answer targets (answer correct >= 95%, page cited >= 95%, first words
+  p95 < 3 s) are measured only on the safe answers until `tmp-pipeline-qa --model live` runs with credentials.
+- The question set is a draft by the extractor's author; it needs a second keying, the client's 20-30 real questions
+  and 2-3 more TMPs (ask-back on real data needs two TMPs on one road).
+- Q3 is not streamed; streaming belongs to the chat API (phase 8). The Level 2 planner (Q2) is phase 7.
+- Contacts are not access-controlled separately (access-group naming is open, plan 8.2); row-level security policies
+  are a phase 8 deployment step (the Postgres reader filters by access groups in every query).
+- The calendar covers 2026 to Term 3 2027; school-specific Term 1 starts and Term 4 ends are "not known".
+- Standards checks ("is a 30 m taper enough?") get the out-of-scope response with what the TMP says.
 
 ## Known gaps (Phase 5)
 

@@ -51,7 +51,7 @@ def check(chunks: list[Chunk], facts: Facts, records: RecordStore, store: Elemen
     for r in records.of_kind("figure", "diagram_sheet"):
         images += 1
         types = {c.chunk_type for c in chunks if r.record_id in c.record_ids}
-        if not types & {"figure_caption", "sheet_overview"}:
+        if not types & {"figure_caption", "sheet_overview", "sheet_image", "sheet_text", "sheet_layout"}:
             gaps.append({"kind": "image", "ref": r.record_id, "pages": [r.page]})
     other_elements = {e for c in chunks if c.chunk_type == "other_section" for e in c.element_ids}
     leftovers = [e for e in store.elements.values() if e.outcome == Outcome.LEFTOVER]

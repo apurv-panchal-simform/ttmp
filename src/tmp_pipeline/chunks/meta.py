@@ -6,9 +6,7 @@ import hashlib
 import re
 
 from ..config import Config
-from ..constants import MASTER_DPI
 from ..facts.model import Facts
-from ..geometry import bbox_pt_to_px
 from ..numerics import extract
 from ..records import Status
 from . import tokens
@@ -32,6 +30,18 @@ def _codes(text: str) -> list[str]:
 
 def _norm(text: str) -> str:
     return " ".join(text.lower().split())
+
+
+DOC_FIELDS = ("version", "tmp_ref", "tmp_ref_aliases", "site_address", "suburb", "road_names", "client", "contractor",
+              "rca", "designer", "work_start", "work_end", "approval_status")
+
+
+def doc_fields(ctx: DocContext, facts: Facts) -> dict:
+    """The document's own fields: on the doc card only (an index that filters every chunk by them copies them from it)."""
+    return {"version": facts.revision, "tmp_ref": ctx.tmp_ref, "tmp_ref_aliases": ctx.tmp_ref_aliases,
+            "site_address": ctx.site_address, "suburb": ctx.suburb, "road_names": ctx.road_names,
+            **{k: ctx.parties.get(k) for k in ("client", "contractor", "rca", "designer")},
+            "work_start": ctx.work_start, "work_end": ctx.work_end, "approval_status": ctx.approval_status}
 
 
 def add_metadata(chunks: list[Chunk], facts: Facts, ctx: DocContext, cfg: Config,
@@ -61,29 +71,20 @@ def add_metadata(chunks: list[Chunk], facts: Facts, ctx: DocContext, cfg: Config
         rps = sorted({*md.get("rp_values", []),
                       *(float(n.value) for n in extract(ch.content, ("rp",)) if isinstance(n.value, int | float))})
         h = hashlib.sha256(_norm(ch.content).encode()).hexdigest()
-        symbols = md.get("symbols") or []
-        height = ctx.page_heights.get(page)
-        for s in symbols:
-            if s.get("bbox") and height:
-                s["bbox_px"] = [round(v, 1) for v in bbox_pt_to_px(s["bbox"], height, MASTER_DPI)]
-            s.pop("bbox", None)
         zones = {ctx.zones.get(p, "") for p in pages}
+        md.pop("symbols", None)                  # the sheet's symbols live in its record; the sheet chunks say them in words
+        if ch.chunk_type == "doc_card":          # document fields once, on the card (doc_info reads them from it)
+            md.update(doc_fields(ctx, facts))
         md.update({
-            "doc_id": ctx.doc_id, "version": facts.revision, "tmp_ref": ctx.tmp_ref,
-            "tmp_ref_aliases": ctx.tmp_ref_aliases, "site_address": ctx.site_address, "suburb": ctx.suburb,
-            "road_names": md.get("road_names") or ctx.road_names, **{k: ctx.parties.get(k) for k in
-                                                                     ("client", "contractor", "rca", "designer")},
-            "work_start": ctx.work_start, "work_end": ctx.work_end, "chunk_type": ch.chunk_type,
+            "doc_id": ctx.doc_id,
             "zone": ctx.zones.get(page, ""), "page": page, "printed_page": ctx.printed.get(page),
             "tmd_ids": tmd_ids, "linked_sheets": md.get("linked_sheets") or [t for t in tmd_ids if facts.sheet(t)],
             "rp_from": rps[0] if rps else None, "rp_to": rps[-1] if rps else None, "rp_values": rps,
-            "symbols": symbols,
             "scope": md.get("scope") or ("generic" if zones == {"generic_standard"} else "site_specific"),
             "applicability": "active", "status": str(worst), "has_conflict": bool(conflict_ids),
-            "conflict_ids": conflict_ids, "approval_status": ctx.approval_status,
+            "conflict_ids": conflict_ids,
             "is_boilerplate": len(seen_text.get(h, set())) >= cfg.chunks.boilerplate_min_pages,
             "boilerplate_hash": h[:16], "access_groups": groups, "codes": _codes(ch.header + "\n" + ch.content),
-            "element_ids": ch.element_ids, "parent_id": ch.parent_id, "sibling": ch.siblings,
         })
         ch.tokens = tokens.count(ch.text())
         ch.rehash()
