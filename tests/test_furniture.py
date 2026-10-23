@@ -56,3 +56,31 @@ def test_conflicting_tmp_references_are_both_kept_as_variants(make_pdf):
     s = run(make_pdf("c.pdf", [page_with(1), page_with(2), page_with(3, ref="KTS 26-1580")]))
     assert s.metadata["tmp_reference"] == "KTS 26-1581"
     assert s.metadata["tmp_reference_variants"] == ["KTS 26-1580", "KTS 26-1581"]
+
+
+def test_header_band_table_pairs_become_header_fields(make_pdf):
+    """TMP Reference | KTS 26-1581 AT-T | RCA consent and/or contract reference | AT-W | form name."""
+    xs = [40, 140, 260, 420, 520, 700]
+
+    def draw_page(n):
+        def draw(c, w, h):
+            top, bot = h - 18, h - 48
+            c.setLineWidth(0.8)
+            for x in xs:
+                c.line(x, bot, x, top)
+            c.line(xs[0], top, xs[-1], top)
+            c.line(xs[0], bot, xs[-1], bot)
+            c.setFont("Helvetica-Bold", 8)
+            for x, lines in zip(xs, (["TMP Reference"], ["KTS 26-1581", "AT-T"], ["RCA consent and/or", "contract reference"],
+                                     ["AT-W"], ["1. TMP PLANNING", "FORM"]), strict=False):
+                for k, t in enumerate(lines):
+                    c.drawString(x + 6, top - 12 - 10 * k, t)
+            c.setFont("Helvetica", 8)
+            c.drawString(60, 25, f"New Zealand Guide to Temporary Traffic Management 1. TMP Planning Form Page {n}")
+            c.setFont("Helvetica", 10)
+            c.drawString(72, 300, f"Body paragraph about the worksite plan number {n}")
+        return draw
+    s = run(make_pdf("band.pdf", [draw_page(1), draw_page(2), draw_page(3)]))
+    fields = {f["label"]: f["value"] for f in s.metadata["header_fields"]}
+    assert fields == {"TMP Reference": "KTS 26-1581 AT-T", "RCA consent and/or contract reference": "AT-W"}
+    assert s.metadata["header_fields"][0]["pages"] == [1, 2, 3]

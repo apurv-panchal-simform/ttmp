@@ -20,7 +20,7 @@ from ..numerics import extract
 from ..records import Record, RecordStore
 from ..vocab import ElementType, Flag
 from .common import source_of
-from .model import Approval, Signoff, Source
+from .model import Approval, Signoff
 
 Grid = dict[int, dict[int, str]]
 
@@ -181,6 +181,3 @@ def approval(signoffs: list[Signoff], catalog: Catalog, conditions: dict[str, bo
     status = "signed" if required and not unsigned else "partially_signed" if signed else "unsigned"
     return Approval(status, required, signed, unsigned, na, notes)
 
-
-def sources_of(signoffs: list[Signoff]) -> list[Source]:
-    return [src for s in signoffs for src in s.sources]

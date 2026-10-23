@@ -197,4 +197,4 @@ def test_azure_search_filters_trim_by_access_and_reuse_the_ranking_rules():
     assert hits and hits[0].chunk.chunk_type == "speed_limit"
     query = next(b for b in fake.bodies if b["search"] != "*")
     assert query["vectorQueries"][0]["fields"] == "content_vector" and len(query["vectorQueries"][0]["vector"]) == 4
-    assert query["searchFields"] == "header,content,summary,glossary_terms,codes"
+    assert query["searchFields"] == "header,content,summary,keywords,glossary_terms,codes"

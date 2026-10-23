@@ -188,11 +188,11 @@ def test_cli_default_run_only_evaluates_triggers_and_cache_only_builds_elements(
 
 @pytest.mark.parametrize("optional", ["di", "db", "search", "cosmos"])
 def test_core_package_does_not_import_the_optional_packages(optional):
-    """Document Intelligence (di), the PostgreSQL store (db) and the live search services (search) are optional."""
+    """Document Intelligence (di), the PostgreSQL store (db), the live search services (search) and the UI are optional."""
     import ast
     root = Path(__file__).parent.parent / "src" / "tmp_pipeline"
     for path in root.rglob("*.py"):
-        if path.relative_to(root).parts[0] in ("di", "db", "search", "cosmos"):     # optional packages may use each other
+        if path.relative_to(root).parts[0] in ("di", "db", "search", "cosmos", "ui"):     # optional packages may use each other
             continue
         for node in ast.walk(ast.parse(path.read_text())):
             mods = [n.name for n in node.names] if isinstance(node, ast.Import) else \

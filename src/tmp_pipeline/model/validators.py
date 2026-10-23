@@ -130,19 +130,6 @@ def check_x2(result: dict | None, catalog: Catalog, names: list[str]) -> NameMap
     return NameMapping(entity, result.get("entity_confidence") in ("high", "medium"), mapped, other, problems)
 
 
-def check_x3(result: dict | None, pdf_text_in_cell: str) -> tuple[str | None, list[str]]:
-    """(value, problems). The read value must agree with any real PDF text inside the cell, else unverified."""
-    if not isinstance(result, dict) or result.get("readable") is not True:
-        return None, ["the image was not readable"]
-    value = _squash(str(result.get("value") or ""))
-    if not value:
-        return None, ["no value read"]
-    pdf = _squash(pdf_text_in_cell)
-    if pdf and pdf.lower() != value.lower() and value.lower() not in pdf.lower():
-        return value, ["the read value does not match the PDF text inside the cell"]
-    return value, []
-
-
 # --- images and diagrams (plan sections 2.6 and 2.7) ----------------------------------------------------------------
 # A vision model reads pixels; code decides what may be trusted. Every number a model reports must be cited to OCR
 # words (or PDF text lines) that exist, hold that number, and sit together; a statement about a diagram must cite

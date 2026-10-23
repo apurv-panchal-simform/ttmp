@@ -36,7 +36,7 @@ class FieldValue:
     raw: str | None = None                  # the text exactly as read ("RP 0.410")
     unit: str | None = None
     status: Status = Status.VERIFIED
-    method: str = "code"                    # code | pattern | catalog | X2 | X3 | X4 | X5 | X6
+    method: str = "code"                    # code | pattern | catalog | X2 | X4 | X5 | X6
     quote: str | None = None                # sentence the value was taken from, when a model read it
     notes: list[str] = field(default_factory=list)
 

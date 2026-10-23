@@ -167,7 +167,6 @@ class DiagramsCfg:
     near_dup_bits: int         # pictures whose 64-bit hashes differ by at most this many bits are the same picture
     rp_assoc_max_pt: float     # an RP label belongs to the nearest sign if that sign is within this
     plate_assoc_max_pt: float  # a TEMPORARY plate claims the nearest speed disc within this
-    dimension_assoc_max_pt: float  # a dimension label belongs to a dimension line it lies within this of
     title_block_max_share: float   # the title block frame covers less than this share of the page
     notes_bullet: re.Pattern[str]
     legend_title: re.Pattern[str]
@@ -236,7 +235,11 @@ class RetrievalCfg:
     candidates: int                                     # keyword and vector candidates per search, before fusion
     rrf_k: int                                          # reciprocal rank fusion constant
     detail_boost: float                                 # rank bonus for chunks matching a TMD, road or RP in the question
+    min_score_ratio: float                              # keyword candidates scoring below this share of the best are dropped
+    max_linked_sheets: int                              # diagram overviews one search may add for the sheets its hits name
     context_budget: int                                 # tokens for the answer context; chunks are cut first
+    sheet_whole: re.Pattern[str]                        # a question about a named sheet that needs all of it
+    sheet_topics: dict[str, re.Pattern[str]]            # sheet chunk type -> question words that need all of it
     calendar: str                                       # school-term and holiday data file in tmp_pipeline/data ("" = none)
     timezone: str
     default_role: str
@@ -376,6 +379,8 @@ def _validate(c: Config) -> None:
     r = c.retrieval
     check(r.tmp_ref.groups == 3, "retrieval.tmp_ref: needs groups for prefix, year and number")
     check(r.candidates > 0 and r.rrf_k > 0 and r.context_budget > 0, "retrieval: candidates, rrf_k, context_budget > 0")
+    check(0.0 <= r.min_score_ratio < 1.0, "retrieval.min_score_ratio: must be in [0, 1)")
+    check(r.max_linked_sheets >= 0, "retrieval.max_linked_sheets: must be >= 0")
     check("default" in r.k and all(v > 0 for v in r.k.values()), "retrieval.k: needs a positive 'default'")
     check(r.default_role in r.role_styles, "retrieval.default_role: must be a key of retrieval.role_styles")
     check(set(r.day_type_facts) <= set(r.day_types), "retrieval.day_type_facts: keys must be retrieval.day_types keys")
@@ -389,7 +394,7 @@ def _validate(c: Config) -> None:
             re.compile(calc.get("when", ""))
         except re.error as e:
             raise ConfigError(f"retrieval.calculations.{name}.when: bad regex: {e}") from None
-    for key in ("ask_back", "no_match", "not_in_tmp", "out_of_scope", "struck", "no_access", "no_tmp"):
+    for key in ("ask_back", "no_match", "not_in_tmp", "out_of_scope", "no_access", "no_tmp"):
         check(key in r.responses, f"retrieval.responses: missing {key!r}")
     f = c.facts
     check(f.title_max_words > 0, "facts.title_max_words: must be positive")

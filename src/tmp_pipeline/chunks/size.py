@@ -22,21 +22,31 @@ def pieces(text: str) -> list[str]:
     return out
 
 
+def pack_indices(units: list[str], budget: int, overlap: int, joiner: str = "\n") -> list[list[int]]:
+    """Greedy packing as in ``pack``, returning for each part the indices of the units it holds (overlap included), so
+    a caller can say where each part came from."""
+    parts: list[list[int]] = []
+    cur: list[int] = []
+
+    def fits(idx: list[int], extra: int) -> bool:
+        return tokens.count(joiner.join([units[i] for i in [*idx, extra]])) <= budget
+
+    for n in range(len(units)):
+        if cur and not fits(cur, n):
+            parts.append(cur)
+            cur = cur[-overlap:] if overlap else []
+            while cur and not fits(cur, n):
+                cur = cur[1:]
+        cur.append(n)
+    if cur and (not parts or cur != parts[-1][-len(cur):]):
+        parts.append(cur)
+    return parts
+
+
 def pack(units: list[str], budget: int, overlap: int, joiner: str = "\n") -> list[str]:
     """Greedy packing of ``units`` into parts of at most ``budget`` tokens; each part after the first starts with
     the last ``overlap`` units of the one before. A single unit larger than the budget stays whole."""
-    parts: list[list[str]] = []
-    cur: list[str] = []
-    for u in units:
-        if cur and tokens.count(joiner.join([*cur, u])) > budget:
-            parts.append(cur)
-            cur = cur[-overlap:] if overlap else []
-            while cur and tokens.count(joiner.join([*cur, u])) > budget:
-                cur = cur[1:]
-        cur.append(u)
-    if cur and (not parts or cur != parts[-1][-len(cur):]):
-        parts.append(cur)
-    return [joiner.join(p) for p in parts]
+    return [joiner.join(units[i] for i in part) for part in pack_indices(units, budget, overlap, joiner)]
 
 
 def split(content: str, budget: int, overlap: int) -> list[str]:

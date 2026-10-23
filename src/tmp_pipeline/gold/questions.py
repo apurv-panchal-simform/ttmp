@@ -77,6 +77,9 @@ class QuestionResult:
     latency_ms: float = 0.0
     answer: str = ""
     cost_usd: float = 0.0
+    context_tokens: int = 0                                        # retrieval metrics (informational, never gate a run)
+    chunks_in_context: int = 0
+    chunk_ranks: dict[str, int | None] = field(default_factory=dict)   # expected context string -> rank of first chunk holding it
 
 
 @dataclass
@@ -95,8 +98,40 @@ class QaScore:
         lat = sorted(r.latency_ms for r in self.results)
         return lat[min(len(lat) - 1, int(round(0.95 * (len(lat) - 1))))] if lat else 0.0
 
+    def retrieval(self) -> dict[str, float]:
+        """Retrieval quality of the chunks alone. ``chunk_hit`` is the share of expected context strings found in some
+        retrieved chunk (the rest come from facts or tools); ``mrr`` and ``hit@1/3`` are over those found in a chunk."""
+        ranks = [rk for r in self.results for rk in r.chunk_ranks.values()]
+        found = [rk for rk in ranks if rk]
+        n = len(self.results) or 1
+        return {"strings": len(ranks), "chunk_hit": len(found) / len(ranks) if ranks else 0.0,
+                "mrr": sum(1 / rk for rk in found) / len(found) if found else 0.0,
+                "hit@1": sum(rk <= 1 for rk in found) / len(found) if found else 0.0,
+                "hit@3": sum(rk <= 3 for rk in found) / len(found) if found else 0.0,
+                "context_tokens": sum(r.context_tokens for r in self.results) / n,
+                "chunks": sum(r.chunks_in_context for r in self.results) / n}
+
     def deterministic_ok(self) -> bool:
         return all((self.rate(m) or 1.0) >= 1.0 for m in DETERMINISTIC)
+
+
+_CHUNK_BLOCK = re.compile(r"(?m)^\[(\d+)\] ")
+
+
+def chunk_ranks(text: str, wanted: list[str]) -> dict[str, int | None]:
+    """For each wanted string, the rank (1 = best) of the first retrieved chunk block that holds it, None if no chunk does.
+
+    The assembled context lists its chunks best first as ``[i] breadcrumb [tags]`` blocks after a CHUNKS line."""
+    head, sep, tail = text.partition("\nCHUNKS\n")
+    blocks: list[str] = []
+    if sep:
+        tail = re.split(r"\n(?:CONFLICTS ON VALUES USED|NOT CHECKED)\n", tail)[0]
+        starts = [m.start() for m in _CHUNK_BLOCK.finditer(tail)]
+        blocks = [tail[a:b] for a, b in zip(starts, starts[1:] + [len(tail)])]
+    out: dict[str, int | None] = {}
+    for w in wanted:
+        out[w] = next((i for i, b in enumerate(blocks, 1) if _has(b, w)), None)
+    return out
 
 
 def score_one(q: dict, res: AnswerResult, rules_types: list[str]) -> QuestionResult:
@@ -115,6 +150,10 @@ def score_one(q: dict, res: AnswerResult, rules_types: list[str]) -> QuestionRes
     if want_types and q.get("rules"):
         c["rules_type"] = set(want_types) <= set(rules_types)
     ctx = res.context
+    if ctx is not None:
+        out.context_tokens, out.chunks_in_context = ctx.tokens, len(ctx.chunk_ids)
+        if q.get("context"):
+            out.chunk_ranks = chunk_ranks(ctx.text, list(q["context"]))
     if q.get("context"):
         miss = [s for s in q["context"] if not (ctx and _has(ctx.text, s))]
         c["context"] = not miss
@@ -176,7 +215,8 @@ def _json_in(text: str) -> dict | None:
 def run_questions(retriever: Retriever, gold: dict, user: User | None = None) -> QaScore:
     user = user or User()
     docs = retriever.store.docs(user)
-    home = next((d for d in docs if d.tmp_ref == gold.get("document")), None)
+    home = max((d for d in docs if d.tmp_ref == gold.get("document")), key=lambda d: (d.version, d.written),
+               default=None)                              # the latest version when several are stored
     results = []
     for q in gold["questions"]:
         session = Session()
@@ -202,6 +242,10 @@ def render(s: QaScore) -> str:
     spent = sum(r.cost_usd for r in s.results)
     lines.append(f"{'model cost':18s} ${spent:.4f} total, ${spent / max(1, len(s.results)):.4f} per question "
                  "(live calls only; cached and replayed answers are free)")
+    m = s.retrieval()
+    lines.append(f"{'retrieval':18s} chunk_hit {m['chunk_hit'] * 100:.0f}% of {m['strings']:.0f} strings; MRR {m['mrr']:.3f}; "
+                 f"hit@1 {m['hit@1'] * 100:.0f}%; hit@3 {m['hit@3'] * 100:.0f}%; "
+                 f"{m['context_tokens']:.0f} context tokens, {m['chunks']:.1f} chunks per question (informational)")
     rows = list(dict.fromkeys(r.row for r in s.results if r.row))
     if len(rows) > 1:
         lines += ["", "by group           answer   context"]

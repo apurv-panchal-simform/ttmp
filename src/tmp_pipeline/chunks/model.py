@@ -34,6 +34,7 @@ class Chunk:
     tokens: int = 0
     content_hash: str = ""
     vector_key: str | None = None   # sha256 of embedding_text when a vector was stored
+    keywords: list[str] = field(default_factory=list)      # catalog names for what the chunk states (chunks.keywords)
 
     def text(self) -> str:
         return f"{self.header}\n\n{self.content}"

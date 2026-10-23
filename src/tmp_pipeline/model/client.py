@@ -27,7 +27,7 @@ class ModelUnavailableError(PipelineError):
 
 @dataclass(frozen=True)
 class ModelRequest:
-    prompt_id: str                      # X2, X3, X4, X5, X6 ...
+    prompt_id: str                      # X2, X4, X5, X6 ...
     prompt_version: str
     model: str
     user: str

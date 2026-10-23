@@ -16,7 +16,7 @@ from ..transport import KeepAliveTransport, Transport, raise_for_status, with_re
 from .index import API_VERSION, FILTERABLE, SearchConfig
 
 _STRUCTURE = ("chunk_id", "parent_id", "sibling", "field_paths", "element_ids", "content_hash")
-SEARCH_FIELDS = "header,content,summary,glossary_terms,codes"
+SEARCH_FIELDS = "header,content,summary,keywords,glossary_terms,codes"
 
 
 def _q(text: str) -> str:
@@ -31,6 +31,8 @@ def filter_for(req: SearchRequest, user: User) -> str:
         parts.append("search.in(chunk_type, '" + ",".join(_q(t) for t in req.chunk_types) + "', ',')")
     if req.scope != "any":
         parts.append(f"scope eq '{_q(req.scope)}'")
+    if req.only_tmd:
+        parts.append("tmd_ids/any(t: search.in(t, '" + ",".join(_q(t) for t in req.only_tmd) + "', ','))")
     groups = ",".join(_q(g) for g in user.groups)
     trim = "not access_groups/any()"
     if groups:

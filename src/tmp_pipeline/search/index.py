@@ -22,6 +22,7 @@ from typing import Any
 from .. import logging_ as lg
 from ..chunks.meta import DOC_FIELDS
 from ..chunks.model import Chunk, ChunkSet
+from ..chunks.text import glossary_matches
 from ..transport import ServiceError, Transport, raise_for_status, urllib_transport, with_retry
 
 API_VERSION = "2024-07-01"
@@ -53,6 +54,7 @@ def index_schema(name: str = INDEX, dims: int = DIMS) -> dict:
         {"name": "content", "type": "Edm.String", "searchable": True, "retrievable": True},
         {"name": "summary", "type": "Edm.String", "searchable": True, "retrievable": True},
         {"name": "glossary_terms", "type": "Collection(Edm.String)", "searchable": True},
+        {"name": "keywords", "type": "Collection(Edm.String)", "searchable": True, "retrievable": True},
         {"name": "codes", "type": "Collection(Edm.String)", "searchable": True, "filterable": True,
          "analyzer": "keyword"},
         *({"name": k, "type": t, "filterable": True, "retrievable": True, "facetable": k in ("chunk_type", "zone")}
@@ -82,7 +84,9 @@ def document(c: Chunk, vector: list[float] | None, glossary: dict[str, str], car
     md = {**{k: v for k, v in (card or {}).items() if k in DOC_FIELDS}, **c.metadata, "chunk_type": c.chunk_type}
     doc: dict[str, Any] = {"id": c.chunk_id.replace(":", "__"), "header": c.header, "content": c.content,
                            "summary": c.summary, "content_hash": c.content_hash,
-                           "glossary_terms": [f"{a} {b}" for a, b in glossary.items() if a in c.embedding_text],
+                           "glossary_terms": [f"{a} {b}" for a, b in glossary_matches(
+                               f"{c.header.split(chr(10), 1)[0]}\n{c.content}\n{c.summary or ''}", glossary)],
+                           "keywords": list(c.keywords),
                            "codes": md.get("codes", [])}
     for k in FILTERABLE:
         if k == "chunk_id":

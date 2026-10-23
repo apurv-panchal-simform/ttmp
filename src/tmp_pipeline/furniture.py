@@ -37,6 +37,29 @@ def _in_band(e: Element, cfg: Config, store: ElementStore) -> bool:
     return in_band(e.bbox_pt, h, cfg.page.header_band_pt, cfg.page.footer_band_pt) is not None
 
 
+def _header_fields(store: ElementStore, band_tables: list[Element], cfg: Config) -> list[dict]:
+    """Label/value pairs printed in a header band table, left to right ("TMP Reference | KTS 26-1581 AT-T | RCA
+    consent and/or contract reference | AT-W"): the form name and page number are skipped, and a cell holding a
+    TMP reference is never a label. Each distinct pair once, with the pages it is printed on, most pages first."""
+    f = cfg.furniture
+    found: dict[tuple[str, str], list[int]] = {}
+    for t in band_tables:
+        kids = sorted((e for e in store.elements.values() if e.parent_id == t.element_id
+                       and str(e.representations.get("text") or "").strip()), key=lambda e: e.bbox_pt[0])
+        texts = [" ".join(str(e.representations["text"]).split()) for e in kids]
+        texts = [x for x in texts if not f.form_name_regex.search(x) and not f.page_number_regex.search(x)]
+        i = 0
+        while i + 1 < len(texts):
+            label, value = texts[i], texts[i + 1]
+            if f.tmp_ref_regex.search(label):
+                i += 1
+                continue
+            found.setdefault((label, value), []).append(t.page)
+            i += 2
+    return [{"label": k[0], "value": k[1], "pages": sorted(set(p))}
+            for k, p in sorted(found.items(), key=lambda kv: -len(set(kv[1])))]
+
+
 def apply_furniture(store: ElementStore, cfg: Config) -> None:
     f = cfg.furniture
     n_pages = len(store.pages)
@@ -74,6 +97,7 @@ def apply_furniture(store: ElementStore, cfg: Config) -> None:
             furniture_ids.add(t.element_id)
             kinds[t.element_id] = "band_table"
 
+    band_tables = [store.elements[i] for i, k in kinds.items() if k == "band_table"]   # ids change on retype
     refs: Counter = Counter()
     ref_pat = f.tmp_ref_regex
     form_pat, page_pat = f.form_name_regex, f.page_number_regex
@@ -96,6 +120,9 @@ def apply_furniture(store: ElementStore, cfg: Config) -> None:
             store.pages[e.page].printed_page = int(pm.group(1))
     for e in store.elements.values():
         e.printed_page = store.pages[e.page].printed_page
+    header = _header_fields(store, band_tables, cfg)
+    if header:
+        store.metadata["header_fields"] = header
     if refs:
         store.metadata["tmp_reference"] = refs.most_common(1)[0][0]
         store.metadata["tmp_reference_variants"] = sorted(refs)

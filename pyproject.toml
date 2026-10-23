@@ -10,7 +10,7 @@ dependencies = [
     "numpy>=2.5.3",
     "opencv-python-headless>=5.0.0.93",
     "pdfplumber>=0.11.10",
-    "pillow>=12.3.0",
+    "pillow>=13.0.0",
     "pypdf>=6.19.0",
     "pypdfium2>=5.14.0",
     "pyyaml>=6.0.3",
@@ -28,6 +28,10 @@ tracing = [
 cosmos = [
     "azure-cosmos>=4.9",
 ]
+ui = [
+    "pandas>=2.2",
+    "streamlit>=1.40",
+]
 
 [project.scripts]
 tmp-pipeline = "tmp_pipeline.run:main"
@@ -41,6 +45,8 @@ tmp-pipeline-index = "tmp_pipeline.search.run:main"
 tmp-pipeline-ask = "tmp_pipeline.retrieval.cli:main"
 tmp-pipeline-qa = "tmp_pipeline.gold.questions:main"
 tmp-pipeline-cosmos = "tmp_pipeline.cosmos.cli:main"
+tmp-pipeline-ui = "tmp_pipeline.ui.launch:main"
+tmp-pipeline-synthetic = "tmp_pipeline.gold.synthetic:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]

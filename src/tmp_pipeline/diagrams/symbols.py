@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 
 from ..config import DiagramsCfg
-from ..geometry import area, centre, centre_in, intersection, union
+from ..geometry import area, centre_in, intersection, union
 from ..numerics import extract
 from ..vocab import SymbolKind
 from .models import LegendEntry, Symbol
@@ -277,10 +277,6 @@ def read_symbols(objects: list[OverlayObject], lines: list[TextLine], legend_ent
 
 def _horizontal(ln: TextLine) -> bool:
     return min(ln.angle % 360.0, 360.0 - ln.angle % 360.0) <= 5.0
-
-
-def sign_centre(s: Symbol) -> tuple[float, float]:
-    return centre(s.bbox)
 
 
 def absorb_controller_parts(symbols: list[Symbol], reach_pt: float = 12.0) -> list[Symbol]:

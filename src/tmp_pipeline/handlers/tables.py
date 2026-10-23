@@ -46,6 +46,8 @@ class KV:
     cell: Cell
     lines: list[CellLine]
     group_lines: list[CellLine] = field(default_factory=list)   # the heading the pair sits under, for evidence
+    line: int = 0                       # visual line inside the cell: pairs on one grid row and line read as one row
+    value_lines: list[str] = field(default_factory=list)        # a value written over several lines, line by line
 
 
 @dataclass
@@ -120,10 +122,74 @@ def _rows_of_lines(lines: list[CellLine]) -> list[list[CellLine]]:
     return [sorted(r, key=lambda x: x.bbox[0]) for r in rows]
 
 
+def _two_column_kv(cell: Cell) -> list[KV] | None:
+    """A cell whose labels and values sit in two columns without a rule between them (labels ending in ":" on
+    the left, values on the right): a label may wrap over several lines and so may its value, and a value line
+    may sit a little above or below its label. None when the cell is not laid out that way."""
+    lines = [ln for ln in cell.lines if not ln.rotated and ln.text.strip()]
+    labels = [ln for ln in lines if ln.text.rstrip().endswith(":")]
+    if not labels:
+        return None
+    split = max(ln.bbox[2] for ln in labels)
+    right = [ln for ln in lines if ln.bbox[0] > split]
+    left = [ln for ln in lines if ln.bbox[0] <= split]
+    if not right or any(ln.bbox[2] > split + 2.0 for ln in left) or any(_INLINE_KV.match(ln.text) for ln in left):
+        return None
+    if any(a.bbox[1] < b.bbox[3] and b.bbox[1] < a.bbox[3] for i, a in enumerate(labels) for b in labels[i + 1:]):
+        return None                       # two labels on one line: label/value columns repeat across the cell
+    blocks: list[list[CellLine]] = []
+    cur: list[CellLine] = []
+    for ln in sorted(left, key=lambda x: -x.bbox[3]):
+        if cur and cur[-1].bbox[1] - ln.bbox[3] > 0.8 * (ln.bbox[3] - ln.bbox[1]):
+            return None                   # a label's wrapped lines sit close together; a gap means other text
+        cur.append(ln)
+        if ln.text.rstrip().endswith(":"):
+            blocks.append(cur)
+            cur = []
+    if cur or not blocks:                 # left text after the last label: not a clean two-column layout
+        return None
+    values: list[list[CellLine]] = [[] for _ in blocks]
+    for ln in right:
+        mid = (ln.bbox[1] + ln.bbox[3]) / 2
+
+        def gap(block: list[CellLine], mid: float = mid) -> float:
+            lo, hi = min(x.bbox[1] for x in block), max(x.bbox[3] for x in block)
+            return 0.0 if lo <= mid <= hi else min(abs(mid - lo), abs(mid - hi))
+        n = min(range(len(blocks)), key=lambda i: gap(blocks[i]))
+        if gap(blocks[n]) > 1.5 * (ln.bbox[3] - ln.bbox[1]):
+            return None                   # a value line no label explains: leave the cell to the general reading
+        values[n].append(ln)
+    out: list[KV] = []
+    group: str | None = None
+    group_line: CellLine | None = None
+    for i, (block, vals) in enumerate(zip(blocks, values, strict=True)):
+        label = " ".join(" ".join(x.text.split()) for x in block).rstrip(":").strip()
+        if not vals:
+            if all(x.bold for x in block):            # a bold label with no value heads the pairs below it
+                group, group_line = label, block[-1]
+            continue
+        vals.sort(key=lambda x: (-x.bbox[3], x.bbox[0]))
+        texts = [" ".join(x.text.split()) for x in vals]
+        out.append(KV(label, " ".join(texts), group, cell, block + vals, [group_line] if group_line else [], line=i,
+                      value_lines=texts if len(texts) > 1 else []))
+    return out
+
+
+def _continues(kv: KV, ln: CellLine) -> bool:
+    """A short plain line just under a pair, starting where the pair starts, is the rest of its value."""
+    last = kv.lines[-1]
+    height = last.bbox[3] - last.bbox[1]
+    return (not ln.bold and len(ln.text.split()) <= 6 and 0 <= last.bbox[1] - ln.bbox[3] <= 0.8 * height
+            and abs(ln.bbox[0] - kv.lines[0].bbox[0]) <= 4.0)
+
+
 def extract_kv(cell: Cell) -> list[KV]:
-    """Label/value pairs inside one cell: 'Label: value' lines, a label with its value to the right on the row,
-    or a label with its value on the next row. A bold line standing alone is a group heading for the pairs
-    after it."""
+    """Label/value pairs inside one cell: labels and values in two columns, 'Label: value' lines, a label with its
+    value to the right on the row, or a label with its value on the next row. A bold line standing alone is a
+    group heading for the pairs after it."""
+    two = _two_column_kv(cell)
+    if two:
+        return two
     out: list[KV] = []
     group: str | None = None
     group_line: CellLine | None = None
@@ -138,12 +204,18 @@ def extract_kv(cell: Cell) -> list[KV]:
                 group, group_line = ln.text, ln
             elif inline:
                 out.append(KV(inline["label"].strip(), inline["value"].strip(), group, cell, [ln],
-                              [group_line] if group_line else []))
+                              [group_line] if group_line else [], line=i))
             elif ln.text.endswith(":") and i + 1 < len(rows) and len(rows[i + 1]) == 1 \
                     and not rows[i + 1][0].text.endswith(":") and not _INLINE_KV.match(rows[i + 1][0].text):
                 out.append(KV(ln.text.rstrip(":").strip(), rows[i + 1][0].text, group, cell, [ln, rows[i + 1][0]],
-                              [group_line] if group_line else []))
+                              [group_line] if group_line else [], line=i))
                 i += 1
+            elif out and _continues(out[-1], ln):        # "TMD4: Parking Management" over "24x7 hrs"
+                kv = out[-1]
+                kv.value_lines = kv.value_lines or [kv.value]
+                kv.value_lines.append(" ".join(ln.text.split()))
+                kv.value = " ".join(kv.value_lines)
+                kv.lines.append(ln)
             i += 1
             continue
         j = 0
@@ -152,11 +224,11 @@ def extract_kv(cell: Cell) -> list[KV]:
             inline = _INLINE_KV.match(ln.text)
             if ln.text.endswith(":") and j + 1 < len(row) and not row[j + 1].text.endswith(":"):
                 out.append(KV(ln.text.rstrip(":").strip(), row[j + 1].text, group, cell, [ln, row[j + 1]],
-                              [group_line] if group_line else []))
+                              [group_line] if group_line else [], line=i))
                 j += 2
             elif inline:
                 out.append(KV(inline["label"].strip(), inline["value"].strip(), group, cell, [ln],
-                              [group_line] if group_line else []))
+                              [group_line] if group_line else [], line=i))
                 j += 1
             else:
                 j += 1
@@ -164,30 +236,51 @@ def extract_kv(cell: Cell) -> list[KV]:
     return out
 
 
+def _heading_cell(cells: list[Cell], r: int) -> Cell | None:
+    """A row whose only cell (ignoring cells carried down from rows above) is a single line ending in ':' with
+    nothing after it: a heading such as 'Stakeholders consulted:' for the rows below."""
+    own = [c for c in cells if c.row == r and not c.empty]
+    if len(own) != 1:
+        return None
+    lines = [ln for ln in own[0].lines if ln.text.strip()]
+    return own[0] if len(lines) == 1 and lines[0].text.rstrip().endswith(":") else None
+
+
 def grid_kv(grid: Grid, fills, tol: float) -> list[KV]:
     """Label/value pairs across cells: a cell ending in ":" followed by a value cell in the same row, grouped
-    under the header-fill row above them. Pairs inside a single cell are added for the cells left over."""
+    under the header-fill row or the lone 'Heading:' row above them. Pairs inside a single cell are added for the
+    cells left over, under the same group as their row. A cell spanning more rows than its label is not its value."""
     out: list[KV] = []
     used: set[int] = set()
     group: str | None = None
     group_cell: Cell | None = None
+    row_group: dict[int, tuple[str | None, Cell | None]] = {}
     for r in range(grid.n_rows):
         cells = _unique(grid.row_slots(r))
-        if _is_group_row(grid, r, fills, tol):
-            group, group_cell = " ".join(cells[0].text.split()) or group, cells[0]
-            used.add(id(cells[0]))
+        heading = None if _is_group_row(grid, r, fills, tol) else _heading_cell(cells, r)
+        if _is_group_row(grid, r, fills, tol) or heading is not None:
+            head = cells[0] if heading is None else heading
+            group, group_cell = " ".join(head.text.split()).rstrip(":").strip() or group, head
+            used.add(id(head))
+            row_group[r] = (group, group_cell)
             continue
+        row_group[r] = (group, group_cell)
         for i, cell in enumerate(cells):
             nxt = cells[i + 1] if i + 1 < len(cells) else None
             text = " ".join(cell.text.split())
-            if text.endswith(":") and nxt is not None and not nxt.empty and not nxt.text.strip().endswith(":"):
+            if text.endswith(":") and nxt is not None and not nxt.empty and not nxt.text.strip().endswith(":") \
+                    and nxt.row_span <= cell.row_span:
                 out.append(KV(text.rstrip(":").strip(), " ".join(nxt.text.split()), group, cell, cell.lines + nxt.lines,
                               group_cell.lines if group_cell else []))
                 used.update({id(cell), id(nxt)})
-    for cell in grid.cells:
+    for cell in sorted(grid.cells, key=lambda c: (c.row, c.col)):
         if id(cell) in used or cell.empty:
             continue
-        out.extend(extract_kv(cell))
+        g, gc = row_group.get(cell.row, (None, None))
+        for kv in extract_kv(cell):
+            if kv.group is None and cell.row_span == 1 and g is not None:
+                kv.group, kv.group_lines = g, (gc.lines if gc else [])
+            out.append(kv)
     return out
 
 
@@ -454,7 +547,10 @@ class TableHandler(BaseHandler):
                       data={"table": info.element.element_id, "shape": info.shape, "n_rows": grid.n_rows,
                             "n_cols": grid.n_cols, "header_rows": info.header_rows, "headers": info.headers,
                             "continues": info.continues.element.element_id if info.continues else None,
-                            "pairs": [{"label": kv.label, "value": kv.value, "group": kv.group} for kv in info.kv],
+                            "pairs": [{"label": kv.label, "value": kv.value, "group": kv.group, "row": kv.cell.row,
+                                       "line": kv.line, **({"value_lines": kv.value_lines} if kv.value_lines else {}),
+                                       "elements": sorted({ln.element.element_id for ln in kv.lines + kv.group_lines})}
+                                      for kv in info.kv],
                             "cells": [] if info.shape in ("records_table", "header_block") else [
                                 {"row": c.row, "col": c.col, "row_span": c.row_span, "col_span": c.col_span,
                                  "text": " ".join(c.text.split())} for c in grid.cells if not c.empty]})

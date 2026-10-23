@@ -4,7 +4,6 @@ from tmp_pipeline.model.validators import (
     check_fact,
     check_quote,
     check_x2,
-    check_x3,
     check_x4,
     check_x6,
     unit_matches,
@@ -93,13 +92,6 @@ def test_x2_unknown_entity_maps_everything_to_other_and_a_field_cannot_be_used_t
     assert check_x2(None, CAT, ["a"]) is None
 
 
-def test_x3_read_must_agree_with_pdf_text_in_the_cell():
-    assert check_x3({"readable": True, "value": "50"}, "") == ("50", [])
-    assert check_x3({"readable": True, "value": "50"}, "50") == ("50", [])
-    assert check_x3({"readable": True, "value": "60"}, "50")[1]
-    assert check_x3({"readable": False, "value": "?"}, "")[0] is None
-
-
 def test_prompts_carry_version_model_and_the_plan_wording():
     r = prompts.x6_judge("STMS to call 0800 USPILL", "spill_hotline", "0800 USPILL", None, "Phone number")
     assert r.prompt_id == "X6" and r.prompt_version == prompts.PROMPT_VERSIONS["X6"] and r.model == "gpt-6-sol"
@@ -111,6 +103,5 @@ def test_prompts_carry_version_model_and_the_plan_wording():
     assert "character for character" in x5.user and '"other_facts"' in x5.user
     x2 = prompts.x2_match_names(prompts.catalog_text(CAT.entities), "h", "g", "n", "records_table", ["A"], ["1"])
     assert "road: A road affected by the works" in x2.user and "start_rp: Start route position (km)" in x2.user
-    assert prompts.x3_read_cell(b"png", "Speed", "r1", "number").images == (b"png",)
     assert x2.key() == prompts.x2_match_names(prompts.catalog_text(CAT.entities), "h", "g", "n", "records_table",
                                               ["A"], ["1"]).key()

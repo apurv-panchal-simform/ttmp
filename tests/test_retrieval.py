@@ -372,6 +372,58 @@ def test_ranking_prefers_site_answers_collapses_boilerplate_and_expands():
     assert [h.chunk.chunk_id for h in only_generic] == ["g"]
 
 
+def test_the_other_side_of_a_conflict_is_the_cheapest_chunk_that_shows_it():
+    best = _chunk("best", "register_row", conflict_ids=["C-009"])
+    big, small = _chunk("big", "narrative_section", conflict_ids=["C-009"]), _chunk("small", "stage", conflict_ids=["C-009"])
+    big.tokens, small.tokens = 480, 90
+    hits = rank_and_expand([(best, 0.1)], SearchRequest("d", "q", k=3), [best, big, small], CFG)
+    assert [(h.chunk.chunk_id, h.via) for h in hits] == [("best", "match"), ("small", "conflict")]
+
+
+def test_a_numbered_part_brings_only_the_adjacent_parts():
+    parts = [_chunk(f"s:part-{i}", "narrative_section", siblings=[f"s:part-{j}" for j in range(1, 5) if j != i])
+             for i in range(1, 5)]
+    hits = rank_and_expand([(parts[1], 0.1)], SearchRequest("d", "q", k=5), parts, CFG)
+    assert {h.chunk.chunk_id for h in hits} == {"s:part-1", "s:part-2", "s:part-3"}
+
+
+def _with(**retrieval):
+    import dataclasses
+    return dataclasses.replace(CFG, retrieval=dataclasses.replace(CFG.retrieval, **retrieval))
+
+
+def test_weak_keyword_matches_are_dropped_unless_the_search_is_broad(store):
+    doc = store.docs(User())[0].doc_id
+    q = "temporary speed limit hours on Sunrise Avenue"
+    everything = LocalSearch(store, _with(min_score_ratio=0.0)).search(SearchRequest(doc, q, k=20), User())
+    cut = LocalSearch(store, _with(min_score_ratio=0.5)).search(SearchRequest(doc, q, k=20), User())
+    broad = LocalSearch(store, _with(min_score_ratio=0.5)).search(SearchRequest(doc, q, k=20, broad=True), User())
+    assert 0 < len(cut) < len(everything)
+    assert [h.chunk.chunk_id for h in broad] == [h.chunk.chunk_id for h in everything]        # a survey keeps them all
+    assert cut[0].chunk.chunk_id == everything[0].chunk.chunk_id                              # the best is never cut
+
+
+def test_a_search_adds_at_most_the_configured_number_of_linked_sheet_overviews():
+    ov = [_chunk(f"ov{i}", "sheet_overview", tmd_ids=[f"TMD-0{i}"]) for i in (1, 2, 3)]
+    hit = _chunk("h", "register_row", linked_sheets=["TMD-01", "TMD-02"], tmd_ids=["TMD-01", "TMD-02"])
+    for n in (0, 1, 2):
+        hits = rank_and_expand([(hit, 0.1)], SearchRequest("d", "q", k=5), [hit, *ov], _with(max_linked_sheets=n))
+        assert len([h for h in hits if h.via == "linked_sheet"]) == n
+
+
+def test_breadth_recipes_ask_for_a_survey_and_the_rest_do_not(store):
+    seen = []
+    class Spy(LocalSearch):
+        def search(self, req, user):
+            seen.append((req.broad, req.query))
+            return super().search(req, user)
+    doc = store.docs(User())[0]
+    for question, types in (("what is on the diagrams", ["diagram"]), ("how long is the 30 zone", ["fact"])):
+        t = Tools(store, Spy(store, CFG), CFG, User(), doc, CAL)
+        run_recipes(t, Reading(question, question, types, "high", {}))
+    assert [b for b, _ in seen] == [True, False]
+
+
 # --- context, safe answer and the answer check -------------------------------------------------------------------
 
 def _evidence(store, question, types):
@@ -641,3 +693,17 @@ def test_a_conflict_version_with_other_numbers_is_not_used_by_an_answer():
     assert check_answer("TMD-02 Shoulder Closure shows 35 m (p.21).", ctx) == []
     assert check_answer("TMD-02 Shoulder Closure shows 35 m and a 1 m safety zone (p.21).", ctx) == []
     assert any("C-002" in p for p in check_answer("TMD 01 Shoulder Closure shows 35 m (p.21).", ctx))
+
+
+def test_a_named_sheet_is_searched_within_unless_the_question_needs_all_of_it():
+    from tmp_pipeline.chunks.model import Chunk
+    from tmp_pipeline.retrieval.hybrid import SearchRequest, _neighbours, allowed
+    c = Chunk("d:sheet_layout:tmd-04:part-3", "sheet_layout", "", "", {"tmd_ids": ["TMD-04"]},
+              siblings=[f"d:sheet_layout:tmd-04:part-{n}" for n in (1, 2, 4, 5)])
+    assert _neighbours(c) == ["d:sheet_layout:tmd-04:part-2", "d:sheet_layout:tmd-04:part-4"]
+    assert allowed(c, SearchRequest("d", "q", only_tmd=("TMD-04",)))
+    assert not allowed(c, SearchRequest("d", "q", only_tmd=("TMD-02",)))
+    r = CFG.retrieval
+    assert r.sheet_whole.search("List all visible distance measurements") and not r.sheet_whole.search("what is in the inset?")
+    assert r.sheet_topics["sheet_layout"].search("what is shown in the inset?")
+    assert r.sheet_topics["sheet_distances"].search("how far is the sign from the work area?")

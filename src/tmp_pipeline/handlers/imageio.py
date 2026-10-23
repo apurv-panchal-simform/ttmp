@@ -15,8 +15,6 @@ from ..geometry import bbox_pt_to_px, centre_in
 from ..model.validators import Word
 from ..vocab import ElementType
 
-MASTER_DPI_KEY = "dpi"
-
 
 def master_path(ctx: HandlerContext, page: int) -> Path | None:
     info = ctx.store.pages.get(page)

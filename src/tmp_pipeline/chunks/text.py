@@ -87,3 +87,9 @@ def value_text(fv: FactValue, facts: Facts | None = None) -> str:
 
 def field_lines(fields: dict[str, FactValue], facts: Facts, skip: tuple[str, ...] = ()) -> list[str]:
     return [f"{label(k)}: {value_text(v, facts)}" for k, v in fields.items() if k not in skip]
+
+
+def glossary_matches(text: str, glossary: dict[str, str]) -> list[tuple[str, str]]:
+    """The glossary abbreviations written in ``text`` as whole words, with their expansions (one rule everywhere:
+    the embedding text, the keyword index and the Azure and Cosmos documents)."""
+    return [(abbr, full) for abbr, full in glossary.items() if re.search(rf"\b{re.escape(abbr)}\b", text)]

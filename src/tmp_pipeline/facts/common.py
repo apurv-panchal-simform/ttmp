@@ -66,7 +66,9 @@ def record_texts(record: Record) -> list[tuple[str, str | None]]:
     if record.kind == "table":
         pairs = d.get("pairs") or []
         for p in pairs:
-            out.append((f"{p.get('label') or ''}: {p.get('value') or ''}", p.get("group")))
+            lines = p.get("value_lines") or [p.get("value") or ""]       # a value over several lines, line by line
+            out.append((f"{p.get('label') or ''}: {lines[0]}", p.get("group")))
+            out += [(str(x), p.get("group")) for x in lines[1:]]
         if not pairs:
             out += [(str(c.get("text") or ""), None) for c in d.get("cells") or [] if c.get("text")]
         return out

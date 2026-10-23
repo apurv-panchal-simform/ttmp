@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 
 from ..config import Config
 from ..facts.model import Fact, Facts, Source
@@ -18,6 +19,7 @@ from ..records import Record, RecordStore, Status
 from ..vocab import Outcome
 from . import size, tokens
 from .context import DocContext, slugify
+from .lineage import Corpus
 from .model import Chunk
 from .text import field_lines, header, label, pages_text, plain, value_text
 
@@ -26,14 +28,52 @@ ROLE_NAMES = {"ttm_designer": "TTM designer", "design_checker": "Design checker"
               "rca_authorisation_form3": "RCA authorisation (Form 3)"}
 
 
-def _text(rec: Record) -> str:
-    """The text a table-like record holds: its pairs, else its cells in reading order, else its field values."""
+def _table_rows(rec: Record) -> list[tuple[str | None, str]]:
+    """A table-like record as (group, line) with one line per table row: the label/value pairs of a row side by side
+    ("First Sign In: 0900 hrs | Commence Pick up: 1430 hrs"), else the row's cells left to right. A row is never
+    cut, so a label always stays with its value."""
     d = rec.data
-    if d.get("pairs"):
-        return "\n".join(f"{p.get('label') or ''}: {p.get('value') or ''}".strip(": ") for p in d["pairs"])
-    cells = sorted(d.get("cells") or [], key=lambda c: (c.get("row", 0), c.get("col", 0)))
+    pairs = d.get("pairs") or []
+    if pairs:
+        rows: dict[tuple, list[dict]] = {}
+        for n, p in enumerate(pairs):
+            key = (p["row"], p.get("line", 0)) if p.get("row") is not None else (n, 0)   # older records: no row
+            rows.setdefault(key, []).append(p)
+        out = []
+        for key in sorted(rows):
+            ps = rows[key]
+            line = " | ".join(f"{p.get('label') or ''}: {p.get('value') or ''}".strip(": ") for p in ps)
+            out.append((ps[0].get("group"), line))
+        return out
+    cells = [c for c in d.get("cells") or [] if str(c.get("text") or "").strip()]
     if cells:
-        return "\n".join(str(c.get("text") or "").strip() for c in cells if str(c.get("text") or "").strip())
+        by_row: dict[int, list[dict]] = {}
+        for c in cells:
+            by_row.setdefault(int(c.get("row", 0)), []).append(c)
+        return [(None, " | ".join(" ".join(str(c["text"]).split()) for c in sorted(cs, key=lambda c: c.get("col", 0))))
+                for _, cs in sorted(by_row.items())]
+    return []
+
+
+def _grouped(rows: list[tuple[str | None, str]]) -> list[tuple[str | None, list[str]]]:
+    """Consecutive rows under one group heading, in table order."""
+    out: list[tuple[str | None, list[str]]] = []
+    for group, line in rows:
+        if out and out[-1][0] == group:
+            out[-1][1].append(line)
+        else:
+            out.append((group, [line]))
+    return out
+
+
+def _text(rec: Record) -> str:
+    """The text a table-like record holds, one line per table row under its group headings, else its field values."""
+    rows = _table_rows(rec)
+    if rows:
+        lines: list[str] = []
+        for group, rs in _grouped(rows):
+            lines += ([f"{group.rstrip(':')}:"] if group else []) + rs
+        return "\n".join(lines)
     return "\n".join(f"{label(k)}: {fv.raw if fv.raw is not None else plain(fv.value)}"
                      for k, fv in rec.fields.items() if fv.value is not None or fv.raw)
 
@@ -95,6 +135,16 @@ def _sheet_summary(summary: object) -> list[str]:
     return lines
 
 
+@dataclass
+class _Item:
+    """One whole block of text with where it came from; blocks are packed into chunks, never cut."""
+    text: str
+    pages: list[int]
+    paths: list[str] = field(default_factory=list)
+    records: list[Record] = field(default_factory=list)
+    elements: list[str] = field(default_factory=list)
+
+
 class Builder:
     def __init__(self, facts: Facts, records: RecordStore, store: ElementStore, cfg: Config, ctx: DocContext):
         self.facts, self.records, self.store, self.cfg, self.ctx = facts, records, store, cfg, ctx
@@ -137,7 +187,9 @@ class Builder:
         element_ids = list(dict.fromkeys([*(e for s in sources for e in s.element_ids),
                                           *(e for r in records for e in r.element_ids()), *elements]))
         field_paths = list(dict.fromkeys([*(f"{f.fact_id}.{k}" for f in facts for k in f.fields), *paths]))
-        pages = sorted(set(pages) or {s.page for s in sources} or {r.page for r in records})
+        # page furniture (the TMP number printed in every header) has no record: it says where a value is repeated,
+        # not where the chunk's text is, so it never decides a chunk's pages
+        pages = sorted(set(pages) or {s.page for s in sources if s.record_id} or {r.page for r in records})
         base = f"{self.ctx.slug}:{ctype}:{slugify(key)}"
         n = 2
         while base in self._ids:
@@ -148,10 +200,10 @@ class Builder:
         budget = self.k.hard_max - tokens.count(head) - 12
         parts = size.split(content, budget, self.k.split_overlap_sentences) if splittable else [content]
         out = []
-        for i, part in enumerate(parts, 1):
+        for i, text_ in enumerate(parts, 1):
             cid = base if len(parts) == 1 else f"{base}:part-{i}"
             label_ = "" if len(parts) == 1 else f" (part {i} of {len(parts)})"
-            c = Chunk(cid, ctype, header(self.ctx, self.k.breadcrumb_sep, pages, path, label_), part.strip(),
+            c = Chunk(cid, ctype, header(self.ctx, self.k.breadcrumb_sep, pages, path, label_), text_.strip(),
                       dict(meta or {}, pages=pages, section_path=path), field_paths, record_ids, element_ids,
                       parent_id=parent)
             out.append(c)
@@ -162,6 +214,69 @@ class Builder:
         self.used.update(r.record_id for r in records)
         self.used.update(record_ids)
         return out
+
+    def emit_packed(self, ctype: str, key: str, path: list[str], items: list[_Item]) -> list[Chunk]:
+        """Pack whole blocks into chunks of at most ``target_max`` tokens (a block is never cut). Each chunk carries only
+        the pages, fact paths, records and elements of the blocks it holds; chunks of one group are siblings."""
+        packs = size.pack_indices([i.text for i in items], self.k.target_max, 0)
+        out: list[Chunk] = []
+        for n, idx in enumerate(packs):
+            its = [items[i] for i in idx]
+            out += self.emit(ctype, key if n == 0 else f"{key}-{n + 1}", path, sorted({p for i in its for p in i.pages}),
+                             "\n".join(i.text for i in its), paths=[p for i in its for p in i.paths],
+                             records=[r for i in its for r in i.records], elements=[e for i in its for e in i.elements],
+                             splittable=False)
+        if len(out) > 1:
+            for c in out:
+                c.siblings = [o.chunk_id for o in out if o is not c]
+        return out
+
+    def merge_small(self) -> None:
+        """Merge clutter into one chunk per page (checkboxes, small form tables) or per table (rows of one table), so a
+        question meets one coherent chunk instead of several fragments that each cost a header. Fact-backed chunks
+        and entity chunks (road, schedule, sign-off ...) stay as they are: each answers one question precisely."""
+        groups: dict[tuple, list[Chunk]] = {}
+        for c in self.chunks:
+            if c.field_paths or c.siblings or len(c.metadata["pages"]) != 1 or c.metadata.get("table_group"):
+                continue              # a table group (DAY SHIFT (during School days)) answers one question: kept whole
+            page, sp = c.metadata["pages"][0], c.metadata["section_path"]
+            if c.chunk_type == "form_fields" and tokens.count(c.content) < self.k.merge_below:
+                groups.setdefault(("form_fields", page), []).append(c)
+            elif c.chunk_type == "narrative_table_row":
+                rec = self.record(c.record_ids[0]) if c.record_ids else None
+                groups.setdefault(("narrative_table_row", page, tuple(sp[:-1]), rec.data.get("table") if rec else None),
+                                  []).append(c)
+        for key, members in groups.items():
+            if len(members) < 2:
+                continue
+            ctype, page = key[0], key[1]
+            paths = [m.metadata["section_path"] for m in members]
+            common: list[str] = []
+            for parts in zip(*paths):
+                if len(set(parts)) != 1:
+                    break
+                common.append(parts[0])
+            if not common:            # no heading in common: these are different topics, not one form section
+                continue
+            items = []
+            for m in members:
+                text = m.content
+                rest = m.metadata["section_path"][len(common):] if ctype == "form_fields" else []
+                title = " › ".join(rest)
+                if title and not text.lower().startswith(title.lower()[:30]):
+                    text = f"{title}\n{text}"
+                items.append(_Item(text, [page], [], [r for r in (self.record(i) for i in m.record_ids) if r is not None],
+                                   list(m.element_ids)))
+            at = self.chunks.index(members[0])
+            for m in members:
+                self.chunks.remove(m)
+                self._ids.discard(m.chunk_id)
+            before = len(self.chunks)
+            name = f"page-{page}" if ctype == "form_fields" else f"p{page}-{common[-1] if common else 'table'}"
+            self.emit_packed(ctype, name, common or ["Form fields"], items)
+            new = self.chunks[before:]
+            del self.chunks[before:]
+            self.chunks[at:at] = new
 
     def record(self, rid: str) -> Record | None:
         return self.records.records.get(rid)
@@ -175,7 +290,8 @@ class Builder:
         for step in (self.doc_card, self.stakeholders, self.activity, self.roads, self.schedules, self.speed_limits,
                      self.stages, self.signoffs, self.vulnerable_users, self.yes_no_questions, self.risk_matrix,
                      self.register_rows, self.procedures, self.sheets, self.figures, self.standard_rules,
-                     self.narrative_sections, self.form_fields, self.narrative_table_rows, self.other_sections):
+                     self.narrative_sections, self.form_fields, self.narrative_table_rows, self.other_sections,
+                     self.merge_small):
             step()
         return self.chunks
 
@@ -186,6 +302,10 @@ class Builder:
         doc = next(iter(f.of("tmp_document")), None)
         if doc and "order_reference" in doc.fields:
             lines.append(f"Order reference: {value_text(doc.fields['order_reference'], f)}")
+        if doc and "tmp_reference_printed" in doc.fields:
+            lines.append(f"TMP reference as printed in the page header: {value_text(doc.fields['tmp_reference_printed'], f)}")
+        if doc and "rca_reference" in doc.fields:
+            lines.append(f"RCA consent / contract reference: {value_text(doc.fields['rca_reference'], f)}")
         if c.site_address:
             lines.append(f"Site: {c.site_address}")
         if c.activity:
@@ -325,7 +445,7 @@ class Builder:
         for t in self.records.of_kind("table"):
             for p in t.data.get("pairs") or []:
                 pairs.setdefault(re.sub(r"[^a-z]", "", str(p.get("label") or "").lower()), (str(p.get("value") or ""), t))
-        tables: set[str] = set()
+        items: list[_Item] = []
         for f in self.facts.of("vulnerable_user"):
             for fname, fv in f.fields.items():
                 if fname.endswith("_note"):
@@ -339,13 +459,12 @@ class Builder:
                 pv = pairs.get(re.sub(r"[^a-z]", "", written.lower()))
                 if pv and pv[0]:
                     lines.append(f"Details: {pv[0]}")
-                    tables.add(pv[1].record_id)
                 paths = [f"{f.fact_id}.{fname}"] + ([f"{f.fact_id}.{fname}_note"] if note is not None else [])
                 srcs = [s.record_id for s in fv.sources]
-                self.emit("vulnerable_user", fname, ["Vulnerable road users", written], [s.page for s in fv.sources],
-                          "\n".join(lines), paths=paths,
-                          records=[r for r in (self.record(i) for i in srcs) if r is not None] +
-                          ([pv[1]] if pv else []))
+                items.append(_Item("\n".join(lines), [s.page for s in fv.sources], paths,
+                                   [r for r in (self.record(i) for i in srcs) if r is not None] + ([pv[1]] if pv else [])))
+        if items:         # the tick list is one form section: "who are the vulnerable users" meets one chunk
+            self.emit_packed("vulnerable_user", "road-users", ["Vulnerable road users"], items)
         for f in self.facts.of("road_aspect"):
             lines = [f"{fv.raw or label(k)}: {'ticked' if fv.value is True else 'not ticked'}"
                      for k, fv in f.fields.items()]
@@ -496,13 +615,12 @@ class Builder:
                         owners[key].append(rec)
             if any(self.k.procedure_removal.search(t) for t in texts):
                 phase = "removal"
-        parent = f"{self.ctx.slug}:procedure"
         for (op, ph), segs in segments.items():
             name = op.replace("_", " ")
             title = f"{name} — {ph}" if op != "general" else f"{ph} (general steps)"
             recs = owners[(op, ph)]
             self.emit("procedure", f"{op}-{ph}", ["Procedures", title], [r.page for r in recs],
-                      f"Procedure: {title}\n" + "\n".join(segs), records=recs, parent=parent)
+                      f"Procedure: {title}\n" + "\n".join(segs), records=recs)
         self.used.update(r.record_id for r in tables)
 
     def sheets(self) -> None:
@@ -779,36 +897,92 @@ class Builder:
                     merged[-1] = (merged[-1][0] + rs, merged[-1][1] + "\n\n" + body)
                 else:
                     merged.append((rs, body))
-            for i, (rs, body) in enumerate(merged):
-                key = f"{top}-{i}" if len(merged) > 1 else top
+            packs: list[Chunk] = []
+            for rs, body in merged:
                 path = [top] + ([str(rs[0].data.get("heading"))] if len(rs) == 1 and rs[0].data.get("level", 1) > 1 else [])
-                part_meta = {"part": f"{i + 1} of {len(merged)}"} if len(merged) > 1 else {}
-                chunks = self.emit("narrative_section", key, path, [p for r in rs for p in r.data.get("pages", [r.page])],
-                                   body, facts=self._section_facts({r.record_id for r in rs}), records=rs, meta=part_meta)
-                if len(merged) > 1:
-                    for c in chunks:
-                        c.parent_id = f"{self.ctx.slug}:narrative_section:{slugify(top)}"
+                packs += self.emit("narrative_section", top, path, [p for r in rs for p in r.data.get("pages", [r.page])],
+                                   body, facts=self._section_facts({r.record_id for r in rs}), records=rs)
+            self._number_parts(packs, "narrative_section", top)
+
+    def _number_parts(self, chunks: list[Chunk], ctype: str, key: str) -> None:
+        """One section that became several chunks (whole sections packed, or one section split): number them
+        ``:part-1 .. :part-n`` with "(part k of n)" in the header and link them as siblings, so a hit on one part
+        brings the adjacent parts (``retrieval.hybrid._neighbours``). Ids stay unique, however the parts arose."""
+        if len(chunks) < 2:
+            return
+        for c in chunks:
+            self._ids.discard(c.chunk_id.rsplit(":part-", 1)[0] if ":part-" in c.chunk_id else c.chunk_id)
+        base, n = f"{self.ctx.slug}:{ctype}:{slugify(key)}", 2
+        while any(i == base or i.startswith(f"{base}:part-") for i in self._ids):
+            base, n = f"{self.ctx.slug}:{ctype}:{slugify(key)}-{n}", n + 1
+        self._ids.add(base)
+        ids = [f"{base}:part-{k}" for k in range(1, len(chunks) + 1)]
+        for k, (c, cid) in enumerate(zip(chunks, ids), 1):
+            c.chunk_id, c.siblings = cid, [o for o in ids if o != cid]
+            c.header = header(self.ctx, self.k.breadcrumb_sep, c.metadata["pages"], c.metadata["section_path"],
+                              f" (part {k} of {len(chunks)})")
+            c.metadata["part"] = f"{k} of {len(chunks)}"
 
     def _order(self, rec: Record) -> float:
         return -self._top(rec)
 
+    @staticmethod
+    def _groups_not_written(rec: Record, corpus: Corpus) -> list[tuple[str | None, str]]:
+        """The groups of a label/value table that another builder used, keeping each group that has a value no chunk
+        holds yet, whole ("Meeting location" and "Apologies" beside the contacts the stakeholder chunk already
+        gives); a group the entity chunks already say in full is left out."""
+        pairs = rec.data.get("pairs") or []
+        missing = {p.get("group") for p in pairs
+                   if not corpus.has_pair(str(p.get("label") or ""), str(p.get("value") or ""))}
+        keep = [p for p in pairs if p.get("group") in missing]
+        if not keep:
+            return []
+        return _table_rows(Record(rec.kind, rec.page, rec.produced_by, {}, rec.entity, data={**rec.data, "pairs": keep}))
+
     def form_fields(self) -> None:
+        """Tables as rows (a row is never split), one chunk per table group (DAY SHIFT (during School days) ...). A
+        table another builder used is still written here unless all its values already are in some chunk."""
+        corpus = Corpus([c.content for c in self.chunks])
         for rec in sorted(self.records.of_kind("table"), key=lambda r: (r.page, r.record_id)):
-            if rec.record_id in self.used or rec.applicability == "not_applicable":
+            if rec.applicability == "not_applicable":
                 continue
-            text = _text(rec)
-            if not text.strip():
+            if rec.record_id in self.used:        # an entity builder rendered it: add only what it left out
+                if not rec.data.get("pairs"):
+                    continue
+                groups = _grouped(self._groups_not_written(rec, corpus))
+            else:
+                groups = _grouped(_table_rows(rec))
+            if not groups:
                 continue
             cells = sorted(rec.data.get("cells") or [], key=lambda c: (c.get("row", 0), c.get("col", 0)))
-            title = next((p.get("group") for p in rec.data.get("pairs") or [] if p.get("group")), None) or \
-                (str(cells[0].get("text") or "").strip()[:60] if cells else rec.record_id)
-            facts = [f for f in self.facts.facts if f.entity not in ("section",)
+            first = (str(cells[0].get("text") or "").strip()[:60] if cells else rec.record_id)
+            facts = [f for f in self.facts.facts if f.entity == "road_geometry"
                      and any(s.record_id == rec.record_id or set(s.element_ids) & set(rec.element_ids())
-                             for s in f.sources) and f.entity == "road_geometry"]
-            if facts:
-                text = "\n".join(field_lines(facts[0].fields, self.facts)) + "\n\nAs written:\n" + text
-            self.emit("form_fields", f"{rec.page}-{title}", self.path_for(rec) + [title], [rec.page], text,
-                      facts=facts, records=[rec])
+                             for s in f.sources)]
+            group_elements: dict[str | None, list[str]] = {}       # the cells of a group's rows (and its heading)
+            for p in rec.data.get("pairs") or []:
+                group_elements.setdefault(p.get("group"), []).extend(p.get("elements") or [])
+            for n, (group, lines) in enumerate(groups):
+                title = group.rstrip(":") if group else (first if n == 0 else f"{first} ({n + 1})")
+                head = [f"{title}:"] if group else []
+                lead = ("\n".join(field_lines(facts[0].fields, self.facts)) + "\n\nAs written:") if facts and n == 0 else ""
+                budget = self.k.target_max - tokens.count("\n".join([lead, *head]))
+                # a row is whole unless it alone is over the budget (a paragraph in one cell): then it splits at sentences
+                lines = [part for ln in lines for part in (size.split(ln, budget, 0) if tokens.count(ln) > budget else [ln])]
+                parts = size.pack_indices(lines, budget, 0)
+                out: list[Chunk] = []
+                for k, idx in enumerate(parts):
+                    body = "\n".join([*([lead] if lead and k == 0 else []), *head, *(lines[i] for i in idx)])
+                    out += self.emit("form_fields", f"{rec.page}-{title}" + (f"-{k + 1}" if k else ""),
+                                     self.path_for(rec) + [title], [rec.page], body,
+                                     facts=facts if k == 0 and n == 0 else (), records=[rec], splittable=False,
+                                     meta={"table_group": title} if group else None)
+                if len(out) > 1:
+                    for c in out:
+                        c.siblings = [o.chunk_id for o in out if o is not c]
+                if len(groups) > 1 and group_elements.get(group):
+                    for c in out:             # a group chunk is about its own rows, not the whole table
+                        c.element_ids = list(dict.fromkeys(group_elements[group]))
         for f in self.facts.of("road_geometry"):
             if not any(f"{f.fact_id}.{k}" in c.field_paths for c in self.chunks for k in f.fields):
                 self.emit("form_fields", f"road-geometry-{f.fact_id}", ["Road geometry"], f.pages(),
@@ -818,7 +992,10 @@ class Builder:
                 if any(f"{f.fact_id}.{k}" in c.field_paths for c in self.chunks for k in f.fields if c.chunk_type != "doc_card"):
                     continue
                 name = {"work_period": "Operating hours", "tmp_document": "Document"}.get(f.entity, f.entity)
-                self.emit("form_fields", f"{f.entity}-{f.fact_id}", [name], f.pages() or [1],
+                # the TMP reference is printed in every page header, but the document's identity (reference, order
+                # reference, approval) is stated once, on page 1: a small chunk that answers identity questions precisely
+                pages = [1] if f.entity == "tmp_document" else f.pages() or [1]
+                self.emit("form_fields", f"{f.entity}-{f.fact_id}", [name], pages,
                           "\n".join(field_lines(f.fields, self.facts)), facts=[f])
 
     def narrative_table_rows(self) -> None:
@@ -855,11 +1032,16 @@ class Builder:
                 texts.append((rec.page, t, rec.element_ids(), [rec]))
         if not texts:
             return
-        body = [t for _, t, _, _ in texts]
-        units = [u for t in body for u in size.pieces(t)]
+        units: list[str] = []
+        origin: list[int] = []                       # for each unit, the index in ``texts`` it came from
+        for n, (_, t, _, _) in enumerate(texts):
+            for u in size.pieces(t):
+                units.append(u)
+                origin.append(n)
         overlap = max(1, round(len(units) * self.k.other_overlap)) if len(units) > 4 else 0
-        parts = size.pack(units, self.k.target_max, overlap)
-        for i, part in enumerate(parts):
-            self.emit("other_section", f"other-{i}", ["Other content"], [p for p, *_ in texts], part,
-                      records=[r for *_, rs in texts for r in rs], elements=[e for _, _, es, _ in texts for e in es],
+        for i, part in enumerate(size.pack_indices(units, self.k.target_max, overlap)):
+            src = [texts[n] for n in dict.fromkeys(origin[u] for u in part)]      # only what this part is made of
+            self.emit("other_section", f"other-{i}", ["Other content"], [p for p, *_ in src],
+                      "\n".join(units[u] for u in part),
+                      records=[r for *_, rs in src for r in rs], elements=[e for _, _, es, _ in src for e in es],
                       splittable=False)

@@ -108,7 +108,11 @@ def test_queries_filter_by_document_access_type_and_scope():
 def test_hybrid_search_fuses_keyword_and_vector_rankings():
     cs, c, _ = _loaded()
     s = CosmosSearch(CFG, c, FakeEmbeddings(dims=8))
-    hits = s.search(SearchRequest(cs.doc_id, "temporary speed limit RP 0.465", k=4), User())
-    assert "speed_limit" in {h.chunk.chunk_type for h in hits if h.via == "match"}     # fake ranking: found, not ranked
+    req = SearchRequest(cs.doc_id, "temporary speed limit RP 0.465", k=6)
+    by_keyword = s._ids(*keyword_query(req, User(), terms(req.query), 20), cs.doc_id)
+    assert by_keyword[0].endswith("speed-limit-0")                                     # the keyword side ranks it first
+    hits = s.search(req, User())
+    # fake vectors are content hashes, so where the fusion puts it among the top few is arbitrary: found, not ranked
+    assert "speed_limit" in {h.chunk.chunk_type for h in hits if h.via == "match"}
     assert any("FullTextContainsAny" in q for q in c.queries) and any("VectorDistance" in q for q in c.queries)
     assert CosmosSearch(CFG, c, None).search(SearchRequest(cs.doc_id, "Stop Go", k=2), User())

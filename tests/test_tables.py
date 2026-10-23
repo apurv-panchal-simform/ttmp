@@ -305,3 +305,65 @@ def test_a_label_value_table_of_checkbox_labels_makes_no_value_record(make_pdf):
         c.drawString(330, 480, "Cyclists: No cycle lane present")
     s, rec = run(make_pdf, [page_with(draw)] * 3)
     assert not rec.of_kind("vulnerable_user")                 # the checkbox handler owns these answers
+
+
+def test_label_and_value_columns_without_a_rule_give_whole_pairs_under_their_heading(make_pdf):
+    """The meeting record: right-aligned labels and values in one ruled cell per row, a value or label over two
+    lines, 'Heading:' rows that head the rows below, and a cell to the right spanning every row."""
+    def right(c, x1, y, text, bold=False):
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", 8)
+        c.drawRightString(x1, y, text)
+
+    def draw(c):
+        top, h, rows = 520, 24, 6
+        for i in range(rows + 1):
+            hline(c, 60, 440, top - i * h)
+        hline(c, 440, 760, top)
+        hline(c, 440, 760, top - rows * h)
+        vline(c, 60, top - rows * h, top)
+        vline(c, 440, top - rows * h, top)
+        vline(c, 760, top - rows * h, top)
+        c.setFont("Helvetica", 8)
+        right(c, 180, top - 15, "Meeting location:")
+        c.drawString(190, top - 15, "Online via Microsoft Teams")
+        right(c, 180, top - h - 15, "Stakeholders consulted:", bold=True)
+        c.setFont("Helvetica", 8)
+        c.drawString(190, top - 2 * h - 9, "Watercare Services (Water)")
+        right(c, 180, top - 2 * h - 14, "Client (Contracting PCBU):")
+        c.setFont("Helvetica", 8)
+        c.drawString(190, top - 2 * h - 19, "James Lu - 021 733 454")
+        right(c, 180, top - 3 * h - 9, "Transport Authority")
+        right(c, 180, top - 3 * h - 19, "Organisation(s):")
+        c.setFont("Helvetica", 8)
+        c.drawString(190, top - 3 * h - 14, "Auckland Transport - 09 355 3553")
+        right(c, 180, top - 4 * h - 15, "Stakeholders not present:", bold=True)
+        right(c, 180, top - 5 * h - 15, "Apologies:")
+        c.setFont("Helvetica", 8)
+        c.drawString(190, top - 5 * h - 15, "N/A")
+        c.drawString(460, top - 3 * h, "Worksite Location: 55 Sunrise Ave")
+    s, rec = run(make_pdf, [page_with(draw)] * 3)
+    (table,) = [r for r in rec.of_kind("table") if r.page == 1 and r.data.get("pairs")]
+    pairs = {p["label"]: (p["value"], p["group"]) for p in table.data["pairs"]}
+    assert pairs["Meeting location"] == ("Online via Microsoft Teams", None)
+    assert pairs["Client (Contracting PCBU)"] == ("Watercare Services (Water) James Lu - 021 733 454", "Stakeholders consulted")
+    assert pairs["Transport Authority Organisation(s)"] == ("Auckland Transport - 09 355 3553", "Stakeholders consulted")
+    assert pairs["Apologies"] == ("N/A", "Stakeholders not present")
+    assert "Stakeholders consulted" not in pairs and "Stakeholders not present" not in pairs     # headings, not labels
+    client = next(p for p in table.data["pairs"] if p["label"].startswith("Client"))
+    assert client["value_lines"] == ["Watercare Services (Water)", "James Lu - 021 733 454"]
+
+
+def test_a_short_line_under_a_pair_is_the_rest_of_its_value(make_pdf):
+    """TTM stages: 'TMD4: Parking Management' in bold with '24x7 hrs' on the line below."""
+    def draw(c):
+        box(c, 60, 360, 660, 520)
+        for k, (stage, hours) in enumerate((("TMD4: Parking Management", "24x7 hrs"), ("TMD2: Shoulder Closure", "(Dayshift)"))):
+            y = 490 - 26 * k
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(98, y, stage)
+            c.setFont("Helvetica", 9)
+            c.drawString(98, y - 12, hours)
+        c.drawString(400, 490, "Work stages")
+    s, rec = run(make_pdf, [page_with(draw)] * 3)
+    pairs = [(p["label"], p["value"]) for r in rec.of_kind("table") if r.page == 1 for p in r.data.get("pairs") or []]
+    assert ("TMD4", "Parking Management 24x7 hrs") in pairs and ("TMD2", "Shoulder Closure (Dayshift)") in pairs

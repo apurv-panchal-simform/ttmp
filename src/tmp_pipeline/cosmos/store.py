@@ -70,9 +70,9 @@ def item_id(chunk_id: str) -> str:
 
 
 def search_text(c: Chunk, glossary: dict[str, str]) -> str:
-    """What the full-text index sees: breadcrumb, content, summary, glossary expansions and codes."""
+    """What the full-text index sees: breadcrumb, content, summary, keywords, glossary expansions and codes."""
     crumb = c.header.split("\n", 1)[0]
-    parts = [crumb, c.content, c.summary or "", " ".join(glossary_terms(c.content, glossary)),
+    parts = [crumb, c.content, c.summary or "", " ".join(c.keywords), " ".join(glossary_terms(c.content, glossary)),
              " ".join(c.metadata.get("codes") or [])]
     return "\n".join(p for p in parts if p)
 
@@ -144,6 +144,9 @@ def where(req: SearchRequest, user: User, params: list[dict], all_types: bool = 
     if req.scope != "any":
         params.append({"name": "@scope", "value": req.scope})
         parts.append("c.metadata.scope = @scope")
+    if req.only_tmd:
+        params.append({"name": "@tmds", "value": list(req.only_tmd)})
+        parts.append("EXISTS(SELECT VALUE t FROM t IN c.metadata.tmd_ids WHERE ARRAY_CONTAINS(@tmds, t))")
     return " AND ".join(parts)
 
 

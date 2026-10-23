@@ -167,6 +167,13 @@ def contacts_from_pairs(records: RecordStore, cfg: FactsCfg) -> list[tuple[dict[
             label, value = str(p.get("label") or "").strip(), str(p.get("value") or "").strip()
             if not cfg.contact_labels.search(label) or not value:
                 continue
+            lines = [str(x).strip() for x in p.get("value_lines") or [] if str(x).strip()]
+            organisation = None
+            if len(lines) > 1:            # "Watercare Services (Water)" over "James Lu - 021 733 454": org, then person
+                person = next((x for x in reversed(lines) if re.search(r"\d", x)), lines[-1])
+                organisation = " ".join(x for x in lines if x is not person)
+                organisation = re.sub(r"\s*\([^)]*\)\s*$", "", organisation).strip() or None   # "(Water)": the utility
+                value = person
             typed = extract(value, ("phone",))
             phones = [str(n.value) for n in typed]
             name = value
@@ -181,5 +188,7 @@ def contacts_from_pairs(records: RecordStore, cfg: FactsCfg) -> list[tuple[dict[
             item = {"name": name, "role": label}
             if phones:
                 item["phone"] = phones[0]
+            if organisation:
+                item["organisation"] = organisation
             out.append((item, source_of(rec, value)))
     return out

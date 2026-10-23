@@ -128,6 +128,8 @@ facts_entities:
       tmp_reference:   {type: text, critical: true, desc: "TMP reference number, e.g. KTS 26-1581"}
       order_reference: {type: text, desc: "Client order or job reference"}
       approval_status: {type: text, desc: "signed, partially_signed or unsigned"}
+      tmp_reference_printed: {type: text, desc: "TMP reference exactly as printed in the page header, with any suffix (AT-T)", synonyms: ["tmp reference"]}
+      rca_reference:   {type: text, desc: "RCA consent and/or contract reference printed in the page header", synonyms: ["rca consent and/or contract reference", "rca consent reference", "contract reference"]}
   stage:
     description: "One stage of the works and the diagram it uses"
     match_key: [tmd_id]

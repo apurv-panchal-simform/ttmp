@@ -6,15 +6,16 @@ import json
 
 from .client import ModelRequest
 
-PROMPT_VERSIONS = {"X2": "1.0", "X3": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0",
+PROMPT_VERSIONS = {"X2": "1.0", "X4": "1.0", "X5": "1.0", "X6": "1.0",
                    "X7": "1.0", "X8": "1.0", "X9": "1.0", "X10": "1.0", "X11": "1.0", "X12": "1.0",
                    "X13": "1.0", "Q1": "1.0", "Q3": "1.1", "Q4": "1.0"}
 
 # Deployments named in the plan; change them in one place when the model choice is settled (open decision).
-# Image reads (X3, X7, X8, X9, X10) run on gpt-6-luna by decision (plan 2.2 names gpt-6-sol); the second read stays gpt-5.5.
-MODELS = {"X2": "gpt-5.4", "X3": "gpt-6-luna", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
+# Image reads (X7, X8, X9, X10) run on gpt-6-luna by decision (plan 2.2 names gpt-6-sol); the second read stays gpt-5.5.
+MODELS = {"X2": "gpt-5.4", "X4": "gpt-6-luna", "X5": "gpt-5.4", "X6": "gpt-6-sol",
           "X7": "gpt-6-luna", "X8": "gpt-6-luna", "X9": "gpt-6-luna", "X10": "gpt-6-luna",
-          "X11": "gpt-5.4", "X12": "gpt-6-luna", "X13": "gpt-6-luna", "Q1": "gpt-6-luna", "Q3": "gpt-6-luna", "Q4": "gpt-6-sol"}
+          "X11": "gpt-5.4", "X12": "gpt-6-luna", "X13": "gpt-6-luna", "Q1": "gpt-6-luna",
+          "Q3": "gpt-6-luna", "Q4": "gpt-6-sol"}
 # Answers (Q3) are written by gpt-6-luna without thinking by decision (2026-10-14: same text-set score as gpt-6-sol at
 # a twentieth of the cost); a failed answer is repaired (Q4) by gpt-6-sol. Per-prompt thinking overrides the default.
 REASONING = {"Q3": "none"}
@@ -48,19 +49,6 @@ Reply JSON:
  "mapping": [{{"name": "<name>", "field": "<field or OTHER>",
               "confidence": "high|medium|low", "note": "<short or null>"}}],
  "unmapped": [{{"name": "<name>", "suggested_field": "<snake_case>"}}]}}"""
-
-_X3_SYSTEM = """You read exactly what is visible in an image cropped from one table cell.
-Never guess. If something is unclear, say so."""
-
-_X3_USER = """[image: crop of the cell area]
-Column header:              {column_header}
-Row(s) this cell covers:    {row_labels}
-Expected kind of value:     {expected_type}
-What value does this image show for this column?
-- If it is a sign or symbol, give the text or number on it and describe the sign.
-- If text or numbers are unreadable, set "readable" to false.
-Reply JSON: {{"value": "<text exactly as shown>", "visual_type": "<sign, symbol, stamp, other>",
-             "description": "<short>", "readable": true/false}}"""
 
 _X4_SYSTEM = """You identify what a section of a New Zealand Traffic Management Plan is about.
 Headings vary between companies; match on meaning, not wording."""
@@ -263,11 +251,6 @@ def x2_match_names(schema_catalog: str, section_heading: str, group_label: str, 
         sample_values=json.dumps(sample_values, ensure_ascii=False)))
 
 
-def x3_read_cell(image_png: bytes, column_header: str, row_labels: str, expected_type: str) -> ModelRequest:
-    return _req("X3", _X3_SYSTEM, _X3_USER.format(column_header=column_header, row_labels=row_labels,
-                                                  expected_type=expected_type), (image_png,))
-
-
 def x4_match_heading(section_catalog: str, heading_path: str, start_of_text: str) -> ModelRequest:
     return _req("X4", _X4_SYSTEM, _X4_USER.format(section_catalog=section_catalog, heading_path=heading_path,
                                                   first_400_characters=start_of_text[:400]))
@@ -332,8 +315,8 @@ def x12_chunk_summary(chunk_type: str, content: str, attempt: int = 1) -> ModelR
 
 
 # --- retrieval (plan part 5) -------------------------------------------------------------------------------------
-# Q2 (the Level 2 planner) belongs to Phase 7. Q3 and Q4 answer in plain text; the text travels inside
-# {"answer": ...} so every prompt has the same structured-output shape.
+# Q3 and Q4 answer in plain text; the text travels inside {"answer": ...} so every prompt has the same
+# structured-output shape.
 
 QUESTION_TYPES = ("fact", "procedure", "diagram", "status", "calculation", "time_check", "across_tmps", "summary",
                   "general_rule", "version_change", "out_of_scope")

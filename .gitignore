@@ -1,6 +1,7 @@
 .venv/
 out/
 out_live/
+out_synth/
 .env
 __pycache__/
 .pytest_cache/

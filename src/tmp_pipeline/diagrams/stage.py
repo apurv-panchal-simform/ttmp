@@ -49,7 +49,7 @@ def _read_sheet(ov: OverlayPage, cfg: Config) -> tuple[SheetModel, list[Region]]
     notes_box, notes = rg.find_notes(lines, paths, d)
     tb_box = rg.find_title_block(lines, paths, size, d)
     tb_raw = rg.read_title_block(tb_box, lines, paths, d) if tb_box else {}
-    images, image_regions = rg.find_images(ov.of_kind("image"), size, tb_box, paths, d, {})
+    images, image_regions = rg.find_images(ov.of_kind("image"), size, tb_box, paths, d)
     figures = [rg.grow_figure_over_title(r, lines, paths) if r.kind == "figure" else r for r in image_regions]
     regions: list[Region] = [r for r in figures]
     if legend_box:
@@ -155,7 +155,7 @@ def read_diagrams(store: ElementStore, pdf_path: str | Path, cfg: Config, out_di
             el = _element_for(store, page, size, "region", r.bbox, sid, r.text, {"kind": r.kind, "label": r.label})
             r.element_id = el.element_id
         for im in sheet.images:
-            _tag_image(store, page, im, sid)
+            _tag_image(store, page, im)
         if sheet.legend:
             box = next((r.bbox for r in sheet.regions if r.kind == "legend"), sheet.legend[0].bbox)
             _element_for(store, page, size, "legend", box, sid, "\n".join(f"{e.swatch}: {e.meaning}" for e in sheet.legend),
@@ -182,7 +182,7 @@ def read_diagrams(store: ElementStore, pdf_path: str | Path, cfg: Config, out_di
     return sheets
 
 
-def _tag_image(store: ElementStore, page: int, im: ImageInfo, sheet_id: str) -> None:
+def _tag_image(store: ElementStore, page: int, im: ImageInfo) -> None:
     """Link a placed picture to the Phase 1 image element it is (same box), so reuse and role travel with it."""
     for e in store.of_type(ElementType.IMAGE, page=page):
         if all(abs(a - b) < 2.0 for a, b in zip(e.bbox_pt, im.bbox, strict=True)):

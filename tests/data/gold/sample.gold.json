@@ -2141,11 +2141,11 @@
    "stage": 4,
    "form_fields": 5,
    "yes_no_questions": 2,
-   "vulnerable_user": 6,
+   "vulnerable_user": 1,
    "risk_matrix": 1,
    "register_row": 15,
    "narrative_section": 10,
-   "narrative_table_row": 5,
+   "narrative_table_row": 1,
    "procedure": 10,
    "sheet_overview": 5,
    "sheet_sign_schedule": 5,
@@ -2156,6 +2156,26 @@
   },
   "max_tokens": 600,
   "texts": [
+    {
+      "id": "vulnerable_user:road-users",
+      "contains": [
+        "Pedestrians:: ticked",
+        "School &/or childcare:: ticked",
+        "Cyclists:: ticked",
+        "Aged care/mobility:: not ticked",
+        "Bus route:: ticked",
+        "Other:: ticked"
+      ]
+    },
+    {
+      "id": "narrative_table_row:p15-installation-maintenance-and-removal-tmds",
+      "contains": [
+        "Diagram No./ reference: TMD Sheet 01",
+        "Title / Description: No Parking Plan",
+        "Diagram No./ reference: TMD Sheet 05",
+        "Diagram No./ reference: FH.M1.CAT-A 1"
+      ]
+    },
    {
     "id": "register_row:stop-go",
     "contains": [

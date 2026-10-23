@@ -9,8 +9,6 @@ embedding client, vectors are stored by the hash of that text; unchanged text re
 """
 from __future__ import annotations
 
-import re
-
 from .. import logging_ as lg
 from ..config import Config
 from ..model import prompts
@@ -18,6 +16,7 @@ from ..model.client import ModelClient, ask
 from ..model.embeddings import CachedEmbeddings
 from ..model.validators import check_x12
 from .model import Chunk, ChunkSet
+from .text import glossary_matches
 
 
 def summarise(chunks: list[Chunk], model: ModelClient | None, previous: ChunkSet | None = None) -> dict[str, int]:
@@ -52,9 +51,12 @@ def summarise(chunks: list[Chunk], model: ModelClient | None, previous: ChunkSet
 
 
 def embedding_text(ch: Chunk, cfg: Config) -> str:
-    seen = ch.text() + (f"\n{ch.summary}" if ch.summary else "")
-    terms = [f"{abbr}: {full}" for abbr, full in cfg.chunks.glossary.items() if re.search(rf"\b{re.escape(abbr)}\b", seen)]
-    return "\n\n".join(p for p in (ch.text(), ch.summary or "", "\n".join(terms)) if p)
+    """What is embedded: the breadcrumb (where the chunk sits), content, summary, keywords and glossary terms. The
+    document context line is left out: it is the same in every chunk of a document, so it only made vectors alike."""
+    crumb = ch.header.split("\n", 1)[0]
+    body = f"{crumb}\n\n{ch.content}"
+    terms = [f"{abbr}: {full}" for abbr, full in glossary_matches(f"{body}\n{ch.summary or ''}", cfg.chunks.glossary)]
+    return "\n\n".join(p for p in (body, ch.summary or "", ", ".join(ch.keywords), "\n".join(terms)) if p)
 
 
 def fill_embedding_text(chunks: list[Chunk], cfg: Config) -> list[Chunk]:

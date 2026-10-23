@@ -92,10 +92,6 @@ def day_type(text: str, cfg: RetrievalCfg) -> str | None:
     return next((k for k, rx in cfg.day_types.items() if rx.search(text)), None)
 
 
-def tmd_numbers(text: str) -> list[int]:
-    return list(dict.fromkeys(int(m.group(1)) for m in TMD_REF.finditer(text)))
-
-
 def rp_values(text: str) -> list[float]:
     return list(dict.fromkeys(float(m.group(1)) for m in RP_REF.finditer(text)))
 

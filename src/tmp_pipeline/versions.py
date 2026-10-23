@@ -6,7 +6,7 @@ VERSIONS = {
     "catalog": "0.0.0",
     "prompt": "0.0.0",
     "model": "none",
-    "chunker": "0.1.0",
+    "chunker": "0.2.0",
     "facts": "0.1.0",
     "retrieval": "0.1.0",
 }

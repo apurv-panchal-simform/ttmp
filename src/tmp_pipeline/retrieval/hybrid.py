@@ -25,6 +25,7 @@ from .. import logging_ as lg
 from ..cache import FileCache
 from ..chunks.model import Chunk, ChunkSet
 from ..chunks.summarise import fill_embedding_text
+from ..chunks.text import glossary_matches
 from ..config import Config
 from ..model.embeddings import CachedEmbeddings, EmbeddingClient
 from .details import RP_REF, TMD_REF
@@ -50,6 +51,8 @@ class SearchRequest:
     tmd_ids: tuple[str, ...] = ()       # details from the question, for the ranking boost
     roads: tuple[str, ...] = ()
     rps: tuple[float, ...] = ()
+    only_tmd: tuple[str, ...] = ()      # search only the chunks of these diagrams (a sheet named in the question)
+    broad: bool = False                 # a survey (every sheet, a summary): keep the weak matches too, no score cutoff
 
 
 @dataclass
@@ -112,7 +115,7 @@ def query_codes(query: str) -> list[str]:
 
 
 def glossary_terms(text: str, glossary: dict[str, str]) -> list[str]:
-    return [exp for abbr, exp in glossary.items() if re.search(rf"\b{re.escape(abbr)}\b", text)]
+    return [full for _, full in glossary_matches(text, glossary)]
 
 
 @dataclass
@@ -131,6 +134,7 @@ class _Index:
             crumb = c.header.split("\n", 1)[0]
             words = tokens(f"{crumb}\n{c.content}\n{c.summary or ''}")
             words += tokens(" ".join(glossary_terms(c.content, glossary)))
+            words += tokens(" ".join(c.keywords))            # catalog names for what the chunk states (chunks.keywords)
             codes = [code_key(x) for x in c.metadata.get("codes") or []]
             bag = Counter(words)
             for code in codes:
@@ -167,6 +171,8 @@ def allowed(c: Chunk, req: SearchRequest) -> bool:
         return False
     if req.chunk_types and c.chunk_type not in req.chunk_types:
         return False
+    if req.only_tmd and not set(req.only_tmd) & set(md.get("tmd_ids") or []):
+        return False
     scope = md.get("scope", "site_specific")
     return req.scope == "any" or scope == req.scope
 
@@ -180,6 +186,19 @@ def _boost(c: Chunk, req: SearchRequest) -> int:
     if req.rps and set(req.rps) & {float(x) for x in md.get("rp_values") or []}:
         n += 1
     return n
+
+
+_PART = re.compile(r":part-(\d+)$")
+
+
+def _neighbours(c: Chunk) -> list[str]:
+    """The parts just before and after a split chunk's part (they overlap it, so a list stays whole); a chunk that
+    was split without part numbers brings all its siblings."""
+    m = _PART.search(c.chunk_id)
+    if not m:
+        return list(c.siblings)
+    n = int(m.group(1))
+    return [s for s in c.siblings if (k := _PART.search(s)) and abs(int(k.group(1)) - n) == 1]
 
 
 def rank_and_expand(fused: list[tuple[Chunk, float]], req: SearchRequest, all_chunks: list[Chunk], cfg: Config) -> list[Hit]:
@@ -216,26 +235,31 @@ def rank_and_expand(fused: list[tuple[Chunk, float]], req: SearchRequest, all_ch
         if n >= 3:
             add(pid, "parent", 0.0)
     for h in hits:
-        for sib in h.chunk.siblings:
+        for sib in _neighbours(h.chunk):
             add(sib, "sibling", h.score)
         if h.chunk.chunk_type in FORM_TYPES and h.chunk.parent_id:
             for c in all_chunks:
                 if c.parent_id == h.chunk.parent_id:
                     add(c.chunk_id, "form_section", h.score)
+    room = r.max_linked_sheets             # an overview is about 450 tokens: only the best hits' sheets get one
     for h in hits[:3]:
         linked = h.chunk.metadata.get("linked_sheets") or []
         if h.chunk.chunk_type != "doc_card" and not h.chunk.chunk_type.startswith("sheet_") and 0 < len(linked) <= 2:
             for tid in linked:
+                if room <= 0:
+                    break
                 ov = next((c for c in all_chunks if c.chunk_type == "sheet_overview" and tid in (c.metadata.get("tmd_ids") or [])), None)
+                before = len(extra)
                 add(ov.chunk_id if ov else None, "linked_sheet", h.score / 2)
+                room -= len(extra) - before
     for h in hits[:2]:                          # the other side of a conflict the best hits carry
         if h.chunk.chunk_type == "doc_card":
             continue
         for cid in h.chunk.metadata.get("conflict_ids") or []:
             others = [c for c in all_chunks if cid in (c.metadata.get("conflict_ids") or [])
                       and c.chunk_type not in ("doc_card", "sheet_sign_schedule") and c.chunk_id != h.chunk.chunk_id]
-            if others:
-                add(others[0].chunk_id, "conflict", h.score / 2)
+            if others:      # any chunk that shows the other side will do: take the cheapest to put in the context
+                add(min(others, key=lambda c: (c.tokens, c.chunk_id)).chunk_id, "conflict", h.score / 2)
     return hits + extra[:req.k]
 
 
@@ -272,6 +296,9 @@ class LocalSearch:
             return []
         kw = ix.bm25(tokens(req.query) + query_codes(req.query))
         kw_rank = sorted((i for i in keep if kw[i] > 0), key=lambda i: -kw[i])[:self.cfg.retrieval.candidates]
+        if kw_rank and not req.broad:   # a chunk that shares one common word with the question is not worth a slot
+            floor = self.cfg.retrieval.min_score_ratio * kw[kw_rank[0]]
+            kw_rank = [i for i in kw_rank if kw[i] >= floor]
         vec_rank: list[int] = []
         if ix.vectors is not None and self.embedder is not None:
             try:

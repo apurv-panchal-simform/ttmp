@@ -54,9 +54,12 @@ def add_metadata(chunks: list[Chunk], facts: Facts, ctx: DocContext, cfg: Config
     mention_records: dict[str, list[str]] = {}
     for m in facts.mentions:
         mention_records.setdefault(m.source.record_id, []).append(m.mention_id)
-    seen_text: dict[str, set[int]] = {}
+    seen_text: dict[str, set[int]] = {}      # normalised text -> pages it appears on
+    seen_in: dict[str, int] = {}             # normalised text -> number of chunks holding it
     for ch in chunks:
-        seen_text.setdefault(hashlib.sha256(_norm(ch.content).encode()).hexdigest(), set()).update(ch.metadata["pages"])
+        key = hashlib.sha256(_norm(ch.content).encode()).hexdigest()
+        seen_text.setdefault(key, set()).update(ch.metadata["pages"])
+        seen_in[key] = seen_in.get(key, 0) + 1
     for ch in chunks:
         md = ch.metadata
         pages = md["pages"]
@@ -83,7 +86,8 @@ def add_metadata(chunks: list[Chunk], facts: Facts, ctx: DocContext, cfg: Config
             "scope": md.get("scope") or ("generic" if zones == {"generic_standard"} else "site_specific"),
             "applicability": "active", "status": str(worst), "has_conflict": bool(conflict_ids),
             "conflict_ids": conflict_ids,
-            "is_boilerplate": len(seen_text.get(h, set())) >= cfg.chunks.boilerplate_min_pages,
+            # repeated text: in at least two chunks (one chunk spanning pages is not repetition) over enough pages
+            "is_boilerplate": seen_in.get(h, 0) >= 2 and len(seen_text.get(h, set())) >= cfg.chunks.boilerplate_min_pages,
             "boilerplate_hash": h[:16], "access_groups": groups, "codes": _codes(ch.header + "\n" + ch.content),
         })
         ch.tokens = tokens.count(ch.text())

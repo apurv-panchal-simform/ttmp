@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from .. import logging_ as lg
-from ..catalog import Catalog
+from ..catalog import Catalog, normalise
 from ..config import Config
 from ..model import prompts
 from ..model.client import ModelClient
@@ -31,7 +31,7 @@ from .tmd import map_mentions, sheet_register
 _ITEM = re.compile(r"(?:^|\s)\d+\.\s+(.+?)(?=\s\d+\.\s|\.\s|\.$|$)")
 
 
-def _tmp_document(facts: Facts, store: ElementStore, records: RecordStore, cfg: Config) -> Fact:
+def _tmp_document(facts: Facts, store: ElementStore, records: RecordStore, cfg: Config, catalog: Catalog) -> Fact:
     occ = tmp_references(store, records)
     fields: dict[str, FactValue] = {}
     if occ:
@@ -51,6 +51,13 @@ def _tmp_document(facts: Facts, store: ElementStore, records: RecordStore, cfg: 
     order = order_reference(records, cfg.facts)
     if order is not None:
         fields["order_reference"] = order
+    ent = catalog.facts_entities.get("tmp_document")
+    for hf in store.metadata.get("header_fields") or []:        # label/value pairs printed in the page header band
+        key = normalise(hf["label"])
+        name = next((n for n, fd in (ent.fields.items() if ent else ()) if key in {normalise(s) for s in fd.synonyms}), None)
+        if name and name not in fields:
+            fields[name] = FactValue(hf["value"], hf["value"], method="furniture",
+                                     sources=[Source("", p, [], hf["value"]) for p in hf["pages"]])
     return facts.add("tmp_document", fields=fields, sources=[s for fv in fields.values() for s in fv.sources])
 
 
@@ -92,7 +99,7 @@ def map_fields(store: ElementStore, records: RecordStore, cfg: Config, catalog: 
 
     used |= merge_entities(facts, list(records.records.values()), catalog, fc)
     used |= copy_records(facts, list(records.records.values()), catalog)
-    _tmp_document(facts, store, records, cfg)
+    _tmp_document(facts, store, records, cfg, catalog)
 
     _merge_rows(facts, "stage", [
         (e.tmd_id, {"tmd_id": FactValue(e.tmd_id, sources=[e.source], method="mention"),

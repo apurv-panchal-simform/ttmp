@@ -161,8 +161,11 @@ def _filtered(items: list[FactItem], reading: Reading, cfg: Config, roads: list[
     return out
 
 
+_BROAD = ("diagram", "summary", "baseline")     # recipes that survey the document (all sheets, a summary, no clear type)
+
+
 def _search(t: Tools, ev: Evidence, reading: Reading, recipe: str, scope: str = "any",
-            types: tuple[str, ...] | None = None) -> list[Hit]:
+            types: tuple[str, ...] | None = None, only_tmd: tuple[str, ...] = ()) -> list[Hit]:
     if t.doc is None:
         return []
     r = t.cfg.retrieval
@@ -172,7 +175,8 @@ def _search(t: Tools, ev: Evidence, reading: Reading, recipe: str, scope: str = 
         tmd_ids = (tid,) if tid else ()
     req = SearchRequest(t.doc.doc_id, reading.standalone, types if types is not None else r.chunk_types.get(recipe, ()),
                         scope, False, r.k.get(recipe, r.k["default"]), tmd_ids,
-                        tuple(x for x in t.doc.roads if x.lower() in reading.standalone.lower()))
+                        tuple(x for x in t.doc.roads if x.lower() in reading.standalone.lower()), only_tmd=only_tmd,
+                        broad=recipe in _BROAD)
     return t.call(ev, "search_chunks", t.search.search, req=req, user=t.user)
 
 
@@ -227,7 +231,16 @@ def diagram(t: Tools, reading: Reading) -> Evidence:
         ev.tmd.append(res)
         if res.get("found"):
             by_id = {c.chunk_id: c for c in (t.chunks.chunks if t.chunks else [])}
-            ev.chunks = [Hit(by_id[cid], 1.0, "tmd") for cid in res["chunk_ids"] if cid in by_id]
+            sheet = [Hit(by_id[cid], 1.0, "tmd") for cid in res["chunk_ids"] if cid in by_id]
+            if t.cfg.retrieval.sheet_whole.search(reading.standalone):
+                ev.chunks = sheet                   # "describe", "list all", "extract": the whole sheet
+            else:                                   # otherwise its overview and the best of its chunks only
+                hits = _search(t, ev, reading, "diagram_sheet", types=t.cfg.retrieval.chunk_types["diagram"],
+                               only_tmd=(res["tmd_id"],))
+                topics = {ct for ct, rx in t.cfg.retrieval.sheet_topics.items() if rx.search(reading.standalone)}
+                keep = [h for h in sheet if h.chunk.chunk_type == "sheet_overview" or h.chunk.chunk_type in topics]
+                have = {h.chunk.chunk_id for h in keep}
+                ev.chunks = keep + [h for h in hits if h.chunk.chunk_id not in have]
             ev.facts += [it for it in get_facts(t.facts, t.chunks, t.cfg, "tmd_sheet") if it.fact_id.endswith(res["tmd_id"])]
             ev.facts += [it for it in get_facts(t.facts, t.chunks, t.cfg, "stage") if it.fact_id in res["stages"]]
             ev.conflicts += [c for c in t.facts.conflicts if c.conflict_id in res["conflicts"]]

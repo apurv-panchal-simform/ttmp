@@ -2,8 +2,8 @@
 
 Extraction, chunking and retrieval for New Zealand Temporary Traffic Management Plans. The design is in
 `TMP Combined Plan.html` (not committed; it lives next to the repo). The build has 8 phases: reading, handlers,
-diagrams and images, facts, chunking and index, retrieval L0+1, planner, operations. This repo is at
-**Phase 6: Retrieval Level 0 + 1** (resolve the TMP, rules + Q1 classifier, recipes per question type, read-only tools
+diagrams and images, facts, chunking and index, retrieval L0+1, Streamlit UI, operations. This repo is at
+**Phase 7: the Streamlit UI**, on **Phase 6: Retrieval Level 0 + 1** (resolve the TMP, rules + Q1 classifier, recipes per question type, read-only tools
 including `calculate` and `time_check`, context assembly, Q3 answer, code answer check, one Q4 repair, fixed
 responses, question test set), built on Phase 5 (chunking and index), Phase 4 (facts), Phase 3 (diagrams and images),
 Phase 2 (handlers) and Phase 1 (reading). A live Azure OpenAI chat client exists (`--model live`), but no live model,
@@ -47,7 +47,16 @@ uv run tmp-pipeline-db write out/sha256-... [--access-group designers]
 
 # Document Intelligence track (separate; default only evaluates when DI is needed)
 uv run tmp-pipeline-di "TMP V1 (...).pdf" --doc-dir out/sha256-... [--cache-only | --live]
+
+# Streamlit UI: browse every output, ask questions with the full trace, run the pipeline on a PDF
+uv sync --extra ui --extra cosmos --extra postgres --extra tracing   # uv sync removes extras it is not given
+uv run tmp-pipeline-ui --out out_live            # extra arguments go to streamlit, e.g. --server.port 8600
 ```
+
+The UI pages are: overview (metadata, stage timings, report), pages and elements (boxes on the page renders),
+router and records (with evidence crops), diagrams, facts and checks, chunks, ask, QA results, and run pipeline.
+It reads the same run folders as the CLIs. Live mode needs the same environment variables, exported in the shell
+that starts the UI.
 
 `--live` needs `AZURE_DI_ENDPOINT` and `AZURE_DI_KEY` in the environment (the key is never logged); install the
 `azure` extra to authenticate with `DefaultAzureCredential` instead. Exit codes: 0 ok, 1 handler failures or
@@ -114,7 +123,7 @@ facts + records + elements -> build_chunks -> summarise_and_embed -> chunks.json
 - `catalog.py` + `templates/catalog.yaml`: the minimal schema catalog (entities, fields, synonyms, units, critical,
   section headings). Synonyms drive code; descriptions drive prompts; adding a field never edits a prompt.
 - `model/`: `prompts.py` (X2-X10 text from the plan, versioned), `validators.py` (quote verbatim, value in quote, unit
-  matches, X2/X4/X6/X3 output checks; for images, cited words must exist, hold the value and sit together, X8 claims
+  matches, X2/X4/X6 output checks; for images, cited words must exist, hold the value and sit together, X8 claims
   may only cite existing symbols and numbers on the sheet), `client.py` (interface, cache, record/replay). Without a model, unknown
   headings stay unnamed, X5-only fields are absent, and critical facts nobody judged are stored `unverified`.
 - `gold/`: the scorer for the extraction gold set (§7.1), including sheet facts (legend, notes, roads exact; symbol
@@ -270,7 +279,7 @@ Extraction stages are `stage <name>` spans. Prompt, context and answer text is s
 ### Image descriptions (live run)
 
 `tmp-pipeline tests/data/sample.pdf --out out_live --model live --model-fixtures out_live/_fixtures` reads the images
-with gpt-6-luna (X3, X7, X8, X9, X10; second reads stay on gpt-5.5; the plan names gpt-6-sol, changed by decision).
+with gpt-6-luna (X7, X8, X9, X10; second reads stay on gpt-5.5; the plan names gpt-6-sol, changed by decision).
 Where it lands: `out_live/<doc>/records.json` (every reading with status, second read and model), `facts.json`, and
 `chunks.jsonl`: `figure_caption` chunks (the forms photo once, plus each picture beside a diagram, tied to its TMD),
 and the TMD `sheet_overview` chunks (layout, approaches, pedestrians, symbol captions; a claim that failed a check is
@@ -293,8 +302,12 @@ from chunks, with no image at answer time.
 - Chunks per sheet: `sheet_text`, `sheet_layout`, `sheet_distances`, `sheet_details` (title block, legend) and
   `sheet_image` (description), next to the shorter `sheet_overview`, the sign schedules and notes. Figure chunks gain
   the full picture read.
-- Retrieval: the diagram rule covers image words, a named sheet pulls all its chunks, and Q3 rule 12 answers from
-  the image facts. The context budget is 10000 tokens.
+- Retrieval: the diagram rule covers image words. A named sheet sends its whole chunk set only for broad questions
+  (`[retrieval] sheet_whole`: describe, list all, extract, JSON...). Otherwise it sends the sheet overview, every
+  chunk of the types the question's words point to (`[retrieval.sheet_topics]`), and the best 3 other chunks of that
+  sheet (`k.diagram_sheet`, search filtered with `only_tmd`). Expansion adds only the neighbouring parts of a split
+  chunk. Q3 rule 12 answers from the image facts. On 2026-10-15 the 70 image questions averaged about 4,800 context
+  tokens, down from about 7,700. Live: 67/70 correct, p95 9.3 s (was 65/70, 14 s). The context budget is 10000 tokens.
 - Test set `tests/data/gold/sample.image_questions.json` (draft): 35 questions keyed to TMD-02, plus 35 generated for
   every sheet from the code facts. Live, 2026-10-14: offline gates 70/70 and answers 61/70 (user's 35: 34/35); after
   the conflict-check fix, 7 of the 9 misses pass. About $0.027 per question. p95 is about 40 s with repairs (large
@@ -346,13 +359,21 @@ chunk alike) and a vector query (`VectorDistance`), and fuses the two rankings w
 expansion are shared with the local backend. Facts are still read from `out/<doc>/facts.json` (PostgreSQL per plan
 3.4 when hosted). The `cosmos` package is optional; core never imports it.
 
+A one-page picture of the whole answering flow (steps, tools, decisions, chunk selection and chunking, with real
+numbers) is in [docs/retrieval-flow.html](docs/retrieval-flow.html); open it in a browser.
+
+The synthetic set (`tmp-pipeline-synthetic out/sha256-... out_synth/`: a V1, a V2 and another TMP) is made by text
+replacement in a real run folder (each copy has a `SYNTHETIC` file). It tests retrieval across TMPs and versions, not
+extraction; keep it in `out_synth/`, never in `out/`. `tests/data/gold/sample.multistep.questions.json` holds 10 questions
+for it.
+
 ## Known gaps (Phase 6)
 
 - No live Q1/Q3/Q4 call has run: the plan 7.2 answer targets (answer correct >= 95%, page cited >= 95%, first words
   p95 < 3 s) are measured only on the safe answers until `tmp-pipeline-qa --model live` runs with credentials.
 - The question set is a draft by the extractor's author; it needs a second keying, the client's 20-30 real questions
   and 2-3 more TMPs (ask-back on real data needs two TMPs on one road).
-- Q3 is not streamed; streaming belongs to the chat API (phase 8). The Level 2 planner (Q2) is phase 7.
+- Q3 is not streamed; streaming belongs to the chat API (phase 8).
 - Contacts are not access-controlled separately (access-group naming is open, plan 8.2); row-level security policies
   are a phase 8 deployment step (the Postgres reader filters by access groups in every query).
 - The calendar covers 2026 to Term 3 2027; school-specific Term 1 starts and Term 4 ends are "not known".
@@ -379,7 +400,7 @@ expansion are shared with the local backend. Facts are still read from `out/<doc
 - Mention titles are cut at punctuation, "and" or four words, so "TMD 02 – Lane Diversion The footpath" keeps two
   extra words (matching is unaffected).
 - The facts gold (`facts` in `sample.gold.json`) is the extractor author's draft, like the rest of the gold set.
-- No reviewer web app yet (corrections are a JSON file); rebuilding affected chunks after a correction is Phase 5
+- No reviewer editing in the UI yet: `tmp-pipeline-ui` shows the review queue, but corrections are still a JSON file; rebuilding affected chunks after a correction is Phase 5
   (`corrections.jsonl` records the affected paths). Blob containers and row-level security policies are phases 8 and 6.
 
 ## Known gaps (Phase 3)

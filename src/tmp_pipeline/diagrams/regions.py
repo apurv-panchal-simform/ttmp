@@ -6,7 +6,7 @@ box around its anchor text, so a changed layout moves the box with the text rath
 from __future__ import annotations
 
 from ..config import DiagramsCfg
-from ..geometry import area, centre, centre_in, contains, union
+from ..geometry import area, centre_in, contains, union
 from .models import ImageInfo, Region
 from .overlay import OverlayObject
 from .textlines import TextLine
@@ -85,14 +85,13 @@ def read_title_block(box: list[float], lines: list[TextLine], paths: list[Overla
 
 
 def find_images(overlay_images: list[OverlayObject], page_size: tuple[float, float], title_block: list[float] | None,
-                paths: list[OverlayObject], cfg: DiagramsCfg, other_pages: dict[str, list[int]]) -> tuple[list[ImageInfo], list[Region]]:
+                paths: list[OverlayObject], cfg: DiagramsCfg) -> tuple[list[ImageInfo], list[Region]]:
     """Classify each placed picture: the aerial under the drawing, insets, figures and repeated banners and logos."""
     page_area = page_size[0] * page_size[1]
     infos: list[ImageInfo] = []
     regions: list[Region] = []
     for im in overlay_images:
         ratio = area(im.bbox) / page_area
-        repeated = bool(im.phash and other_pages.get(im.phash))
         if title_block is not None and centre_in(im.bbox, title_block):
             role = "decorative"
         elif ratio >= 0.5:
@@ -101,8 +100,7 @@ def find_images(overlay_images: list[OverlayObject], page_size: tuple[float, flo
             role = "inset"
         else:
             role = "figure"
-        infos.append(ImageInfo(im.index, im.bbox, im.px, im.phash, role, im.level, other_pages.get(im.phash or "", [])))
-        del repeated
+        infos.append(ImageInfo(im.index, im.bbox, im.px, im.phash, role, im.level, []))      # reuse is linked later (lineage)
         if role == "inset":
             frame = [p.bbox for p in paths if p.kind == "path" and p.stroke is not None and contains(p.bbox, im.bbox, 3.0)
                      and area(p.bbox) < 3 * area(im.bbox)]
@@ -126,6 +124,3 @@ def grow_figure_over_title(region: Region, lines: list[TextLine], paths: list[Ov
     text = " ".join(ln.text.strip() for ln in sorted(titles, key=lambda ln: -ln.centre[1]))
     return Region(region.kind, box, text, region.element_id, text)
 
-
-def region_centre(r: Region) -> tuple[float, float]:
-    return centre(r.bbox)
