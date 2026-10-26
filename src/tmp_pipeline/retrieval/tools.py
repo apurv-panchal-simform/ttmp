@@ -1,37 +1,55 @@
-"""The read-only tools of plan 5.6 over the facts store: get_facts, get_status, get_tmd, find_tmps, compare_versions.
+"""The code tools the answer model may call after the chunks are retrieved (plan 5.6, 5.8).
 
-Every value goes out with its status, raw text, unit, pages, a citation (form, section, page) and the conflicts
-that touch it, so the answer can be checked against exactly what was given. ``search_chunks`` is in ``hybrid``,
-``calculate`` in ``calc``, ``time_check`` in ``timecheck`` and ``resolve_tmp`` in ``resolve``.
+``get_facts``, ``calculate``, ``time_check``, ``find_tmps``, ``compare_versions`` and ``search_chunks``. They are plain code
+over the facts store and the search: read-only, run as the signed-in user, and every value goes out with its status,
+unit and a citation (form, section, page), so the answer can be checked against exactly what was given. ``calculate``
+takes names of stored values only, never a number of its own. A bad argument gives ``{"error": ...}``; a tool never raises.
 """
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
-from dataclasses import dataclass
-from dataclasses import field as _field
+from dataclasses import dataclass, field
 from typing import Any
 
-from ..catalog import normalise
-from ..chunks.model import ChunkSet
+from ..calc import calculate as _calculate
+from ..calc import named_values
 from ..config import Config
-from ..facts.common import norm_name
-from ..facts.model import Conflict, Fact, Facts, FactValue
+from ..ingestion.chunking.model import ChunkSet
+from ..ingestion.facts.common import norm_name
+from ..ingestion.facts.model import Fact, Facts
 from ..records import Status
-from .details import TMD_REF
+from .search import ChunkSearch, SearchRequest
+from .session import find_tmp, tmp_key
 from .store import DocInfo, FactsStore, User, latest
+from .timecheck import Calendar, time_check
 
 _PAGE_TAIL = re.compile(r"\s+—\s+pages?\s+[\d, –-]+$")
 LABEL_FIELDS = ("road_name", "day_type", "tmd_id", "title", "name", "category", "question", "heading", "speed_kmh")
+MAX_ITEMS = 40
+
+
+@dataclass
+class ToolEnv:
+    store: FactsStore
+    search: ChunkSearch
+    cfg: Config
+    user: User
+    doc: DocInfo | None                      # the TMP the conversation is about (None: no TMP chosen yet)
+    now: dt.datetime
+    calendar: Calendar | None = None
+    seen: set[str] = field(default_factory=set)      # chunk ids already in the context
 
 
 def pages_text(pages: list[int]) -> str:
-    """"p.3", "pp.3, 10", or "pp.1–24" for a run of three or more pages."""
+    """"page 3", "pages 3, 10", or "pages 1–24" for a run of three or more pages: the words the chunks use, so a page an
+    answer cites is also a number the answer check finds in the context."""
     pages = sorted(set(pages))
     if not pages:
         return ""
     if len(pages) == 1:
-        return f"p.{pages[0]}"
+        return f"page {pages[0]}"
     runs: list[str] = []
     start = prev = pages[0]
     for p in [*pages[1:], None]:
@@ -41,89 +59,47 @@ def pages_text(pages: list[int]) -> str:
         runs.append(f"{start}–{prev}" if prev - start >= 2 else ", ".join(str(x) for x in range(start, prev + 1)))
         if p is not None:
             start = prev = p
-    return "pp." + ", ".join(runs)
+    return "pages " + ", ".join(runs)
 
 
 class Citer:
-    """(form, section, page) for a fact, from the breadcrumb of the chunk that states it (the same words the reader
-    sees in the context); a fact no chunk states falls back to its pages."""
+    """(form, section, page) for a fact, from the breadcrumb of the chunk that states it (the words the reader sees in
+    the context); a fact no chunk states falls back to its pages."""
 
-    def __init__(self, facts: Facts, chunks: ChunkSet | None):
+    def __init__(self, chunks: ChunkSet | None):
         self.crumb: dict[str, str] = {}
-        if chunks is None:
-            return
-        for c in chunks.chunks:
-            first = c.header.split("\n", 1)[0]
-            parts = [p.strip() for p in _PAGE_TAIL.sub("", first).split("›")][1:]   # drop the TMP reference
-            crumb = ", ".join(parts)
+        for c in chunks.chunks if chunks else []:
+            parts = [p.strip() for p in _PAGE_TAIL.sub("", c.header.split("\n", 1)[0]).split("›")][1:]
             for path in c.field_paths:
-                self.crumb.setdefault(path, crumb)
-                self.crumb.setdefault(path.split(".", 1)[0], crumb)
+                self.crumb.setdefault(path, ", ".join(parts))
+                self.crumb.setdefault(path.split(".", 1)[0], ", ".join(parts))
 
-    def __call__(self, fact: Fact | None, pages: list[int] | None = None, path: str | None = None) -> str:
-        crumb = (self.crumb.get(path or "") or (self.crumb.get(fact.fact_id) if fact else None) or "")
+    def __call__(self, fact: Fact | None, pages: list[int] | None = None) -> str:
+        crumb = self.crumb.get(fact.fact_id, "") if fact else ""
         where = pages_text(pages if pages is not None else (fact.pages() if fact else []))
         return ", ".join(p for p in (crumb, where) if p)
 
 
-@dataclass
-class Value:
-    path: str                           # "speed_limit:0.length_m"
-    field: str
-    value: Any
-    unit: str | None = None
-    raw: str | None = None
-    status: str = "verified"
-    pages: list[int] = _field(default_factory=list)
-    conflict_ids: list[str] = _field(default_factory=list)
-    versions: list[dict] = _field(default_factory=list)
-    notes: list[str] = _field(default_factory=list)
+def _tmp(env: ToolEnv, tmp: str | None) -> tuple[DocInfo | None, dict | None]:
+    """The TMP a tool reads: the named one (a TMP key, reference or address the user may read) or the current one."""
+    if not tmp:
+        if env.doc is None:
+            return None, {"error": "no TMP is chosen: pass tmp (a TMP key such as 'KTS 26-1581 V1')"}
+        return env.doc, None
+    res = find_tmp(env.store, env.user, tmp)
+    if res.status == "one" and res.doc is not None:
+        return res.doc, None
+    names = [tmp_key(d) for d in latest(env.store.docs(env.user))]
+    return None, {"error": f"no single readable TMP matches {tmp!r}", "readable": names}
 
 
-@dataclass
-class FactItem:
-    fact_id: str
-    entity: str
-    label: str
-    values: list[Value]
-    source: str
-    pages: list[int] = _field(default_factory=list)
-    applicability: str = "active"
-    flags: list[str] = _field(default_factory=list)
-    conflict_ids: list[str] = _field(default_factory=list)
-
-    def value(self, name: str) -> Value | None:
-        return next((v for v in self.values if v.field == name), None)
+def _facts(env: ToolEnv, doc: DocInfo) -> tuple[Facts, Citer]:
+    return env.store.facts(doc.doc_id, env.user), Citer(env.store.chunks(doc.doc_id, env.user))
 
 
-def conflicts_for(facts: Facts, refs: set[str]) -> list[Conflict]:
-    """Conflicts whose affected list or versions name any of ``refs`` (fact paths, fact ids or TMD ids)."""
-    out = []
-    for c in facts.conflicts:
-        hit = any(a in refs or a.split(".", 1)[0] in refs for a in c.affected)
-        hit = hit or any(v.get("mapped_to") in refs for v in c.versions)
-        if hit:
-            out.append(c)
-    return out
-
-
-def _value(path: str, name: str, fv: FactValue, facts: Facts) -> Value:
-    cids = [c.conflict_id for c in conflicts_for(facts, {path})]
-    pages = sorted({s.page for s in fv.sources})
-    return Value(path, name, fv.value, fv.unit, fv.raw, str(fv.status), pages, cids, list(fv.versions), list(fv.notes))
-
-
-def _label(f: Fact) -> str:
+def _item_label(f: Fact) -> str:
     bits = [str(f.fields[n].value) for n in LABEL_FIELDS if n in f.fields and f.fields[n].value not in (None, "")]
     return f"{f.entity}[{', '.join(bits[:2])}]" if bits else f.fact_id
-
-
-def fact_item(f: Fact, facts: Facts, cite: Citer, fields: list[str] | None = None) -> FactItem:
-    vals = [_value(f"{f.fact_id}.{n}", n, fv, facts) for n, fv in f.fields.items()
-            if fields is None or n in fields]
-    cids = list(dict.fromkeys(c for v in vals for c in v.conflict_ids))
-    cids += [c.conflict_id for c in conflicts_for(facts, {f.fact_id}) if c.conflict_id not in cids]
-    return FactItem(f.fact_id, f.entity, _label(f), vals, cite(f), f.pages(), f.applicability, list(f.flags), cids)
 
 
 def _matches(f: Fact, flt: dict[str, Any], cfg: Config) -> bool:
@@ -143,110 +119,101 @@ def _matches(f: Fact, flt: dict[str, Any], cfg: Config) -> bool:
     return True
 
 
-def tmd_items(facts: Facts, cite: Citer) -> list[FactItem]:
-    out = []
-    for s in facts.tmd_sheets:
-        cids = [c.conflict_id for c in conflicts_for(facts, {s.tmd_id})]
-        vals = [Value(f"tmd_sheet:{s.tmd_id}.{n}", n, v, pages=[s.page], conflict_ids=cids)
-                for n, v in (("tmd_id", s.tmd_id), ("title", s.title), ("sheet", s.sheet), ("rev", s.rev))
-                if v is not None]
-        out.append(FactItem(f"tmd_sheet:{s.tmd_id}", "tmd_sheet", f"tmd_sheet[{s.tmd_id}, {s.title}]", vals,
-                            cite(None, [s.page], f"tmd_sheet:{s.tmd_id}"), [s.page], conflict_ids=cids))
-    return out
+def _selected(env: ToolEnv, facts: Facts, entity: str, flt: dict | None) -> list[Fact]:
+    return [f for f in facts.of(entity) if f.applicability == "active" and (not flt or _matches(f, flt, env.cfg))]
 
 
-def get_facts(facts: Facts, chunks: ChunkSet | None, cfg: Config, entity: str, fields: list[str] | None = None,
-              flt: dict[str, Any] | None = None) -> list[FactItem]:
-    """Typed values of one entity (plan 5.6). ``entity`` is a tool entity (``retrieval.entities``)."""
-    cite = Citer(facts, chunks)
-    stored = cfg.retrieval.entities.get(entity, entity)
-    if entity == "tmd_sheet":
-        return tmd_items(facts, cite)
-    if entity == "doc_card":
-        items = [fact_item(f, facts, cite) for e in ("tmp_document", "work_period") for f in facts.of(e)]
-        items += [fact_item(f, facts, cite, ["road_name", "suburb", "start_rp", "end_rp"]) for f in facts.of("road")]
-        items += [fact_item(f, facts, cite, ["name", "organisation", "roles", "phone"]) for f in facts.of("contact")]
-        return items + tmd_items(facts, cite)
-    out = []
-    for name in stored.split("|"):
-        for f in facts.of(name):
-            if flt and not _matches(f, flt, cfg):
+def entity_catalog(env: ToolEnv) -> str:
+    """The stored facts of the current TMP the tools can read, "entity: field, field ...", so the model names an entity and
+    fields that exist (the first thing it gets wrong otherwise). Long free-text entities are left out."""
+    if env.doc is None:
+        return ""
+    facts = env.store.facts(env.doc.doc_id, env.user)
+    fields: dict[str, dict[str, None]] = {}
+    for f in facts.facts:
+        if f.applicability == "active" and f.entity not in ("section", "risk_matrix_cell", "figure", "authorisation"):
+            fields.setdefault(f.entity, {}).update({n: None for n in f.fields})
+    return "\n".join(f"- {e}: {', '.join(list(names)[:14])}" for e, names in fields.items())
+
+
+# --- get_facts ---------------------------------------------------------------------------------------------------
+
+def get_facts(env: ToolEnv, entity: str, fields: list[str] | None = None, filter: dict | None = None,
+              tmp: str | None = None) -> dict:
+    doc, err = _tmp(env, tmp)
+    if doc is None:
+        return err or {}
+    facts, cite = _facts(env, doc)
+    items = []
+    for f in _selected(env, facts, entity, filter)[:MAX_ITEMS]:
+        values = {}
+        for n, fv in f.fields.items():
+            if fields and n not in fields:
                 continue
-            item = fact_item(f, facts, cite, fields)
-            if item.values:
-                out.append(item)
-    return out
+            v: dict[str, Any] = {"value": fv.value}
+            if fv.unit:
+                v["unit"] = fv.unit
+            if fv.raw and str(fv.raw) != str(fv.value):
+                v["written"] = fv.raw
+            if fv.status != Status.VERIFIED:
+                v["status"] = str(fv.status)
+            if fv.versions:
+                v["versions"] = fv.versions
+            values[n] = v
+        items.append({"fact": _item_label(f), "values": values, "source": cite(f)})
+    if not items:
+        known = sorted({f.entity for f in facts.facts})
+        return {"tmp": tmp_key(doc), "entity": entity, "items": [], "note": f"no {entity!r} facts; entities: {known}"}
+    return {"tmp": tmp_key(doc), "entity": entity, "items": items}
 
 
-def get_status(facts: Facts, chunks: ChunkSet | None) -> dict:
-    """Approval, every sign-off block, all conflicts, rating mismatches and the count of unverified values."""
-    cite = Citer(facts, chunks)
-    unverified = [f"{f.fact_id}.{n}" for f in facts.facts for n, fv in f.fields.items()
-                  if fv.status == Status.UNVERIFIED]
-    mismatches = [c for c in facts.checks if c.outcome == "flagged"]
-    return {
-        "approval": facts.approval.status if facts.approval else "unknown",
-        "required": list(facts.approval.required) if facts.approval else [],
-        "signed": list(facts.approval.signed) if facts.approval else [],
-        "unsigned": list(facts.approval.unsigned) if facts.approval else [],
-        "not_applicable": list(facts.approval.not_applicable) if facts.approval else [],
-        "signoffs": [{"role": s.role, "status": s.status, "name": s.name, "organisation": s.organisation,
-                      "signature": s.signature, "date": s.date, "page": s.page,
-                      "source": cite(None, [s.page], None)} for s in facts.signoffs],
-        "conflicts": [{"id": c.conflict_id, "title": c.title,
-                       "versions": [{"value": v.get("value"), "pages": v.get("pages", []), "note": v.get("note")}
-                                    for v in c.versions]} for c in facts.conflicts],
-        "mismatches": [{"check": c.name, "detail": c.detail, "items": c.items} for c in mismatches],
-        "unverified": len(unverified),
-        "unverified_paths": unverified[:20],
-    }
+# --- calculate ---------------------------------------------------------------------------------------------------
+
+def calculate(env: ToolEnv, expression: str, entity: str | None = None, filter: dict | None = None,
+              values: dict | None = None, result_unit: str | None = None, tmp: str | None = None) -> dict:
+    """With ``entity``: once for every fact of that entity (matching ``filter``), naming its own fields, e.g.
+    ``rp_to - rp_from``. With ``values``: {name: {"fact": "speed_limit:0.rp_to", "tmp": optional}} from any facts or TMPs."""
+    if entity:
+        doc, err = _tmp(env, tmp)
+        if doc is None:
+            return err or {}
+        facts, cite = _facts(env, doc)
+        results = []
+        for f in _selected(env, facts, entity, filter)[:10]:
+            res = _calculate(expression, named_values(f.fields, cite(f)), result_unit)
+            results.append({"fact": _item_label(f), **res})
+        if not results:
+            return {"error": f"no {entity!r} facts match", "expression": expression, "entities": entity_catalog(env)}
+        return {"tmp": tmp_key(doc), "results": results}
+    named: dict[str, dict] = {}
+    for name, ref in (values or {}).items():
+        path, _, field_name = str((ref or {}).get("fact", "")).partition(".")
+        doc, err = _tmp(env, (ref or {}).get("tmp") or tmp)
+        if doc is None:
+            return err or {}
+        facts, cite = _facts(env, doc)
+        f = facts.fact(path)
+        pick = named_values(f.fields, cite(f)).get(field_name) if f else None
+        if pick is None:
+            return {"error": f"{name}: {ref!r} is not a stored number or date", "expression": expression}
+        named[name] = pick
+    if not named:
+        return {"error": "give entity (and an expression over its field names) or values", "expression": expression}
+    return _calculate(expression, named, result_unit)
 
 
-def _norm_tmd(text: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", normalise(text))
+# --- time_check --------------------------------------------------------------------------------------------------
+
+def check_time(env: ToolEnv, what: str = "work", date: str | None = None, time: str | None = None,
+               day_type: str | None = None, tmp: str | None = None) -> dict:
+    doc, err = _tmp(env, tmp)
+    if doc is None:
+        return err or {}
+    facts, cite = _facts(env, doc)
+    return {"tmp": tmp_key(doc), **time_check(facts, env.cfg, cite, date, time, day_type, what, env.calendar)}
 
 
-def find_sheet(facts: Facts, tmd: str) -> tuple[str | None, list[Conflict]]:
-    """A diagram named by ID, number or title -> (TMD id, the conflicts about that name). A number another
-    sheet's title claims (the stage lists' "TMD4") comes back with its conflicts, so the answer shows both."""
-    want = _norm_tmd(tmd)
-    by_alias = {_norm_tmd(a): s.tmd_id for s in facts.tmd_sheets for a in (*s.aliases, s.tmd_id, s.title)}
-    tid = by_alias.get(want)
-    m = TMD_REF.search(tmd)
-    if tid is None and m:
-        num = int(m.group(1))
-        tid = next((s.tmd_id for s in facts.tmd_sheets if s.sheet.isdigit() and int(s.sheet) == num), None)
-    if tid is None and want:
-        hits = [s.tmd_id for s in facts.tmd_sheets if want in _norm_tmd(s.title) or _norm_tmd(s.title) in want]
-        tid = hits[0] if len(hits) == 1 else None
-    if tid is None:
-        return None, []
-    refs = {tid}
-    if m:          # mentions written with this number but mapped elsewhere
-        num = int(m.group(1))
-        refs |= {x.mention_id for x in facts.mentions if x.number == num and x.id_conflict}
-    return tid, conflicts_for(facts, refs)
-
-
-def get_tmd(facts: Facts, chunks: ChunkSet | None, tmd: str) -> dict:
-    """Everything about one diagram as text: overview, what the image shows, layout, distances, sign schedules, all its
-    text, notes, title block and the pictures beside it (plan 5.6)."""
-    tid, conflicts = find_sheet(facts, tmd)
-    if tid is None:
-        return {"tmd": tmd, "found": False, "sheets": [f"{s.tmd_id} {s.title} (p.{s.page})" for s in facts.tmd_sheets]}
-    sheet = facts.sheet(tid)
-    assert sheet is not None
-    parts = []
-    if chunks is not None:
-        order = {"sheet_overview": 0, "sheet_image": 1, "sheet_layout": 2, "sheet_distances": 3, "sheet_sign_schedule": 4,
-                 "sheet_text": 5, "sheet_notes": 6, "sheet_details": 7, "figure_caption": 8}
-        parts = sorted((c for c in chunks.chunks if c.chunk_type in order and tid in (c.metadata.get("tmd_ids") or [])),
-                       key=lambda c: (order[c.chunk_type], c.chunk_id))
-    stages = [f for f in facts.of("stage") if "tmd_id" in f.fields and f.fields["tmd_id"].value == tid]
-    return {"tmd": tmd, "found": True, "tmd_id": tid, "title": sheet.title, "page": sheet.page,
-            "aliases": sheet.aliases, "chunk_ids": [c.chunk_id for c in parts],
-            "stages": [f.fact_id for f in stages], "conflicts": [c.conflict_id for c in conflicts]}
-
+# --- find_tmps ---------------------------------------------------------------------------------------------------
 
 def _overlaps(info: DocInfo, start: str | None, end: str | None) -> bool:
     if not (start or end):
@@ -262,14 +229,14 @@ def _overlaps(info: DocInfo, start: str | None, end: str | None) -> bool:
     return a <= e and s <= b
 
 
-def find_tmps(store: FactsStore, user: User, cfg: Config, road: str | None = None, suburb: str | None = None,
-              organisation: str | None = None, active_from: str | None = None, active_to: str | None = None,
-              approval_status: str | None = None, has_conflict: bool | None = None) -> list[DocInfo]:
-    """TMPs (latest version each) the user may read that match every filter given."""
+def find_tmps(env: ToolEnv, road: str | None = None, suburb: str | None = None, organisation: str | None = None,
+              active_from: str | None = None, active_to: str | None = None, approval_status: str | None = None,
+              has_conflict: bool | None = None) -> dict:
+    """TMPs (latest version of each) the user may read that match every filter given."""
     def has(names: list[str], want: str | None) -> bool:
-        return not want or any(norm_name(want, cfg.facts) in norm_name(n, cfg.facts) for n in names)
+        return not want or any(norm_name(want, env.cfg.facts) in norm_name(n, env.cfg.facts) for n in names)
     out = []
-    for d in latest(store.docs(user)):
+    for d in latest(env.store.docs(env.user)):
         if not has(d.roads + ([d.site_address] if d.site_address else []), road):
             continue
         if not has(d.suburbs + ([d.suburb] if d.suburb else []), suburb) or not has(d.organisations, organisation):
@@ -280,18 +247,113 @@ def find_tmps(store: FactsStore, user: User, cfg: Config, road: str | None = Non
             continue
         if _overlaps(d, active_from, active_to):
             out.append(d)
-    return sorted(out, key=lambda d: (d.work_start or "", d.tmp_ref))
+    out.sort(key=lambda d: (d.work_start or "", d.tmp_ref))
+    return {"count": len(out), "tmps": [
+        {"tmp": tmp_key(d), "address": d.site_address or ", ".join(d.roads), "suburb": d.suburb,
+         "work_start": d.work_start, "work_end": d.work_end, "approval": d.approval_status,
+         "has_conflict": d.has_conflict} for d in out[:MAX_ITEMS]]}
 
 
-def compare_versions(a: Facts, b: Facts) -> dict:
-    """Changed fields and sections between two versions of one TMP (fact ids are stable within a template)."""
-    def flat(f: Facts) -> dict[str, Any]:
-        return {f"{x.fact_id}.{n}": fv.value for x in f.facts for n, fv in x.fields.items()}
-    fa, fb = flat(a), flat(b)
-    changed = [{"path": p, "from": fa.get(p), "to": fb.get(p)} for p in sorted(set(fa) | set(fb))
-               if fa.get(p) != fb.get(p) and not p.startswith("section:")]
-    heads = {"a": {str(s.fields["heading"].value) for s in a.of("section") if "heading" in s.fields},
-             "b": {str(s.fields["heading"].value) for s in b.of("section") if "heading" in s.fields}}
-    return {"changed": changed, "sections_added": sorted(heads["b"] - heads["a"]),
-            "sections_removed": sorted(heads["a"] - heads["b"]),
-            "approval": [a.approval.status if a.approval else None, b.approval.status if b.approval else None]}
+# --- compare_versions --------------------------------------------------------------------------------------------
+
+def _flat(f: Facts) -> dict[str, Any]:
+    return {f"{x.fact_id}.{n}": fv.value for x in f.facts for n, fv in x.fields.items()}
+
+
+def compare_versions(env: ToolEnv, tmp: str | None = None, from_version: int | None = None,
+                     to_version: int | None = None) -> dict:
+    """Changed fields and sections between two versions of one TMP (default: the two newest)."""
+    doc, err = _tmp(env, tmp)
+    if doc is None:
+        return err or {}
+    docs = sorted((d for d in env.store.docs(env.user) if d.tmp_ref == doc.tmp_ref), key=lambda d: (d.version, d.written))
+    by_version = {d.version: d for d in docs}
+    if from_version is not None and to_version is not None:
+        a, b = by_version.get(int(from_version)), by_version.get(int(to_version))
+    else:
+        a, b = (docs[-2], docs[-1]) if len(docs) >= 2 else (None, None)
+    if a is None or b is None:
+        return {"error": f"{doc.tmp_ref} has only versions {sorted(by_version)}; two are needed to compare"}
+    fa, fb = env.store.facts(a.doc_id, env.user), env.store.facts(b.doc_id, env.user)
+    va, vb = _flat(fa), _flat(fb)
+    changed = [{"path": p, "from": va.get(p), "to": vb.get(p)} for p in sorted(set(va) | set(vb))
+               if va.get(p) != vb.get(p) and not p.startswith("section:")]
+    heads = [{str(s.fields["heading"].value) for s in x.of("section") if "heading" in s.fields} for x in (fa, fb)]
+    return {"tmp": doc.tmp_ref, "from": f"V{a.version}", "to": f"V{b.version}", "changed": changed[:MAX_ITEMS],
+            "sections_added": sorted(heads[1] - heads[0]), "sections_removed": sorted(heads[0] - heads[1]),
+            "approval": [fa.approval.status if fa.approval else None, fb.approval.status if fb.approval else None]}
+
+
+# --- search_chunks -----------------------------------------------------------------------------------------------
+
+def search_chunks(env: ToolEnv, query: str, tmp: str | None = None) -> dict:
+    """The best chunks of a TMP for another query (or of another TMP); chunks already in the context are left out."""
+    doc, err = _tmp(env, tmp)
+    if doc is None:
+        return err or {}
+    hits = env.search.search(SearchRequest(doc.doc_id, query, env.cfg.retrieval.search_k, include_not_applicable=True),
+                             env.user)
+    own = doc.doc_id == (env.doc.doc_id if env.doc else "")
+    out = [{"chunk": h.chunk.header.split("\n", 1)[0], "content": h.chunk.content} for h in hits
+           if not (own and h.chunk.chunk_id in env.seen)]
+    env.seen.update(h.chunk.chunk_id for h in hits)
+    return {"tmp": tmp_key(doc), "query": query, "chunks": out}
+
+
+# --- the model's view of the tools ------------------------------------------------------------------------------
+
+def _spec(name: str, description: str, properties: dict, required: list[str] | None = None) -> dict:
+    return {"type": "function", "function": {"name": name, "description": description, "parameters": {
+        "type": "object", "properties": properties, "required": required or []}}}
+
+
+_TMP = {"type": "string", "description": "A TMP key such as 'KTS 26-1581 V1' (default: the current TMP)"}
+TOOLS: list[dict] = [
+    _spec("get_facts", "Typed values (with unit, status, page) of one entity of a TMP: road, shift_window, speed_limit, "
+          "work_period, stage, risk, contact, tmp_document, tmd_sheet ...",
+          {"entity": {"type": "string"}, "fields": {"type": "array", "items": {"type": "string"}},
+           "filter": {"type": "object", "description": "field: value pairs the facts must match"}, "tmp": _TMP}, ["entity"]),
+    _spec("calculate", "Arithmetic on stored values, done by code, with the working. Never calculate yourself. Give "
+          "entity and an expression over that entity's field names (e.g. 'rp_to - rp_from', 'end_date - start_date'), "
+          "or values {name: {fact: 'speed_limit:0.rp_to', tmp?}} to combine values of several facts or TMPs. Numbers "
+          "may not be written into the expression. + - * / min max abs round and one comparison are allowed.",
+          {"expression": {"type": "string"}, "entity": {"type": "string"}, "filter": {"type": "object"},
+           "values": {"type": "object"}, "result_unit": {"type": "string", "description": "m, km, min, h, days"},
+           "tmp": _TMP}, ["expression"]),
+    _spec("time_check", "Whether work, the temporary speed limit or each stage is allowed / in force at a NZ date and "
+          "time, from the shift windows, speed-limit hours, works dates and the school-term and public-holiday "
+          "calendar. Give a date (YYYY-MM-DD) or a day_type, and a time (HH:MM).",
+          {"what": {"type": "string", "enum": ["work", "tsl", "stage"]}, "date": {"type": "string"},
+           "time": {"type": "string"},
+           "day_type": {"type": "string", "enum": ["school_day", "school_holiday", "weekend", "public_holiday"]},
+           "tmp": _TMP}, ["what"]),
+    _spec("find_tmps", "TMPs (latest version of each) the user may read, filtered by road, suburb, organisation, dates "
+          "the works are active between (YYYY-MM-DD), approval status or whether the document contradicts itself.",
+          {"road": {"type": "string"}, "suburb": {"type": "string"}, "organisation": {"type": "string"},
+           "active_from": {"type": "string"}, "active_to": {"type": "string"},
+           "approval_status": {"type": "string", "enum": ["signed", "partially_signed", "unsigned"]},
+           "has_conflict": {"type": "boolean"}}),
+    _spec("compare_versions", "What changed between two versions of one TMP (default: the two newest).",
+          {"tmp": _TMP, "from_version": {"type": "integer"}, "to_version": {"type": "integer"}}),
+    _spec("search_chunks", "Search the chunks of a TMP with a better query, or of another TMP, when what is in the "
+          "context is not enough.", {"query": {"type": "string"}, "tmp": _TMP}, ["query"]),
+]
+_RUN = {"get_facts": get_facts, "calculate": calculate, "time_check": check_time, "find_tmps": find_tmps,
+        "compare_versions": compare_versions, "search_chunks": search_chunks}
+
+
+def run_tool(name: str, args: dict, env: ToolEnv) -> dict:
+    fn = _RUN.get(name)
+    if fn is None:
+        return {"error": f"unknown tool {name!r}", "tools": sorted(_RUN)}
+    try:
+        return fn(env, **args)
+    except TypeError as e:
+        return {"error": f"bad arguments for {name}: {e}"}
+    except (ValueError, KeyError, AttributeError) as e:
+        return {"error": f"{name} failed: {type(e).__name__}: {e}"}
+
+
+def render(name: str, args: dict, result: dict) -> str:
+    """One call as the context shows it: the tool, its arguments and the result, as compact JSON."""
+    return f"{name}({json.dumps(args, ensure_ascii=False)})\n{json.dumps(result, ensure_ascii=False, default=str)}"

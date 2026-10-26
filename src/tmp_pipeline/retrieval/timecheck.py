@@ -15,8 +15,8 @@ from functools import cache
 from importlib import resources
 
 from ..config import Config
-from ..facts.common import day_type as facts_day_type
-from ..facts.model import Fact, Facts
+from ..ingestion.facts.common import day_type as facts_day_type
+from ..ingestion.facts.model import Fact, Facts
 from ..records import Status
 
 # catalog fields the windows are read from

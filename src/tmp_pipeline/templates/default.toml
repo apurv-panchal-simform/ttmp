@@ -231,6 +231,25 @@ procedure_removal = '(?i)^\s*TTM Removal\b|\bPOST REMOVAL\b'
 boilerplate_min_pages = 3
 default_access_groups = []
 
+[chunks.derived.speed_limit_length]   # figures worked out in code from stored values and written into the chunk with their working
+entity = "speed_limit"                # the chunk of this entity (road: its chunk; work_period: the document card)
+expression = "rp_to - rp_from"        # names are the fact's fields; no numbers may be written in
+unit = "m"
+label = "Length from the RPs"
+stated = "length_m"                   # the document's own figure, compared with the result (optional)
+
+[chunks.derived.road_extent]
+entity = "road"
+expression = "end_rp - start_rp"
+unit = "m"
+label = "Works extent on this road"
+
+[chunks.derived.works_duration]
+entity = "work_period"
+expression = "end_date - start_date"
+unit = "days"
+label = "Works duration"
+
 [chunks.glossary]            # added to the embedding text when the abbreviation appears in a chunk
 STMS = "site traffic management supervisor"
 TSL = "temporary speed limit"
@@ -265,113 +284,24 @@ unattended = '\bUNATTENDED\b'
 post_installation = '\bPOST INSTALLATION(?: PROCEDURE)?\b'
 post_removal = '\bPOST REMOVAL(?: PROCEDURE)?\b'
 
-[retrieval]                  # Phase 6: resolve, classify, recipes, tools, context and answer (plan part 5)
-tmp_ref = '(?i)\b([A-Z]{2,5})\s*(\d{2})\s*[-–]\s*(\d{3,5})\b'     # groups: company prefix, year, number
-time_mention = '(?i)\b\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)\b|\b[0-2]\d[:.]?[0-5]\d\s*(?:hrs?|hours)?\b|\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b|\btoday\b|\btonight\b|\btomorrow\b|\bschool\s*(?:days?|holidays?)\b|\bweek\s*ends?\b|\bpublic\s*holiday'
-follow_up = '(?i)^\s*(?:and|also|what about|how about|same)\b|\b(?:it|that one|this one|the other(?: one)?|those|them)\b'
-road_suffix = '(?i)\b(avenue|road|street|drive|place|crescent|highway|lane|terrace|ave|rd|st|dr|pl|cres|hwy|ln|tce)\b'
+[retrieval]                  # plain RAG: one hybrid search in the chosen TMP, one model call
 candidates = 20              # keyword and vector candidates per search, before fusion
 rrf_k = 60
-detail_boost = 0.5           # added (in rank units) to chunks matching a TMD, road or RP named in the question
 min_score_ratio = 0.4        # keyword candidates scoring below this share of the best one are dropped (0 = keep all)
 max_linked_sheets = 1        # diagram overviews (about 450 tokens each) one search may add for the sheets its hits name
-sheet_whole = '(?i)\bdescribe\b|\bsummar|\boverview\b|\blist (?:all|every)\b|\ball (?:the |visible |readable )?(?:text|labels?|distances?|signs?|measurements?|annotations?|references?|information)\b|\bevery\b|\bextract\b|\btranscribe\b|\bjson\b|\bstructured\b|\bunreadable\b|\bcannot be\b|\bmissing\b|\bassumptions?\b|\binferences?\b|\bsupported\b|\bverify\b|\breview\b|\bsafety risks?\b|\bcompliance\b|\bpurpose\b|\bwhat (?:type|kind) of\b|\bmajor elements\b'   # named-sheet questions that get the whole sheet; others search within it
-context_budget = 10000        # tokens; chunks are cut from the bottom first, never facts or conflicts
-calendar = "nz_calendar.toml"
+search_k = 6                 # chunks one search keeps; expansion (siblings, parent, form section) may add as many again
+context_budget = 10000       # tokens; chunks are cut from the bottom first, never facts or conflicts
 timezone = "Pacific/Auckland"
 default_role = "designer"
+tools = true                 # the answer model may call code tools after the chunks are retrieved (calculate, time_check ...)
+max_tool_rounds = 2          # rounds of tool calls before the answer has to be written
+max_tool_calls = 6           # tool calls in all, for one question
+calendar = "nz_calendar.toml"  # school terms and public holidays for time_check ("" = no calendar)
 
-[retrieval.rules]            # question type -> cue; checked in this order (plan 5.4); "fact" only when nothing else matches
-status = '(?i)\bapprov|\bsigned\b|\bsign[-\s]?off|\bsignatur|\b(?:need|needs|have|has) to sign\b|\bwho (?:must|should) sign\b|\bauthoris|\bconflict|\bcontradict|\bdiscrepanc|\berrors?\b'
-calculation = '(?i)\bhow long\b|\bhow far\b|\bdistance between\b|\bdifference\b|\btotal\b|\blength of\b'
-time_check = '(?i)\bcan (?:we|i|the crew|they)\b|\ballowed\b|\bin force\b|\bwork at\b|\bstill be on site\b|\bpermitted\b|\bok to work\b'
-diagram = '(?i)\bTMD\b|\bTMD\s*-?\d|\bdiagram|\bsheet\b|\blayout\b|\bsigns\b|\bsign (?:order|schedule|spacing|position)|\bcones?\b|\btaper\b|\bcontroller|\bimage\b|\bpicture|\bdrawing\b|\bdrawn\b|\bplan view\b|\bvisible\b|\bshown\b|\bshows?\b|\btranscribe|\blabels?\b|\bannotation|\bnotice\b|\bdistances?\b(?!\s+between\s+(?:the\s+)?RPs?\b)|\bmeasurements?\b|\bdimensions?\b|\bhow far\b|\bspacing\b|\bleft to right\b|\bright to left\b|\bposition|\blocated\b|\bwhich side\b|\blooks? like\b|\bappear|\bcolou?r|\blegend\b|\btitle block\b|\bdrawn by\b|\bscale\b|\bunreadable\b|\bunclear\b|\bsymbols?\b|\bpictogram|\binset\b|\barrow'
-across_tmps = '(?i)\bwhich tmps\b|\ball tmps\b|\bany tmps?\b|\bacross\b|\bother tmps\b'
-procedure = '(?i)\bwho (?:do|should|must) we (?:call|contact|notify|tell)\b|\bif (?:the )?work runs late\b|\bwhat if\b|\bwhat do we do\b|\bprocedure|\bhow do we\b|\bin case of\b|\bwhat happens if\b|\bwhat must be done\b'
-summary = '(?i)\bsummary\b|\bsummari[sz]e|\btoolbox\b|\boverview\b'
-version_change = '(?i)\bwhat changed\b|\bdifference between versions\b|\bV[2-9]\b|\bprevious version\b'
-general_rule = '(?i)\bin general\b|\bgeneral(?:ly)? rule\b|\bstandard says\b|\bgeneric\b'
-out_of_scope = '(?i)\b(?:is|are) (?:a |an |the )?.{0,30}\b(?:enough|sufficient|compliant|ok)\b.{0,20}\bfor (?:a )?\d+\s*(?:km/?h)?\s*road\b|\bcopttm says\b|\bweather\b'
-fact = '(?i)\bspeed\b|\baadt\b|\bstart date\b|\bend date\b|\bwho is\b|\bwho are\b|\bphone\b|\bcontact\b|\bclient\b|\bcontractor\b|\brp\b|\bonrc\b|\bhmv\b|\bwhen\b|\bwhat time\b|\bhours\b|\brisk\b|\brating\b|\bticked\b|\bbus\b|\bpedestrian|\bcyclist|\bstages?\b|\bdates?\b|\bwidth\b|\blanes?\b|\baddress\b|\bwhere\b|\bwhat is\b|\bwhat.?s\b|\bis it\b|\bis there\b|\bdoes\b|\bwhich\b'
-
-[retrieval.day_types]        # day type in a question -> how it is asked
-school_day = '(?i)\bschool\s*(?:days?|term)\b'
-school_holiday = '(?i)\bschool\s*holidays?\b|\bholidays?\b(?!\s*public)'
-weekend = '(?i)\bweek\s*ends?\b|\bsaturdays?\b|\bsundays?\b'
-public_holiday = '(?i)\bpublic\s*holidays?\b'
-
-[retrieval.day_type_facts]   # day type in a question -> the canonical day type in the facts (facts.day_types)
+[retrieval.day_type_facts]   # day type in a question -> day type as the facts store it (facts.day_types)
 school_day = "school_days"
 school_holiday = "school_holidays"
 weekend = "weekends"
-
-[retrieval.entities]         # get_facts entity (plan 5.6) -> the entity the facts store holds; "*" entries are built in code
-road = "road"
-shift_window = "shift_window"
-speed_limit = "speed_limit"
-stage = "stage"
-checkbox = "form_answer|road_aspect|vulnerable_user|road_geometry"
-risk = "risk"
-risk_matrix = "risk_matrix_cell"
-contact = "contact"
-authorisation = "authorisation"
-vulnerable_user = "vulnerable_user"
-road_geometry = "road_geometry|road_aspect"
-section_facts = "section"
-figure = "figure"
-work_period = "work_period"
-doc_card = "*"
-tmd_sheet = "*"
-
-[retrieval.entity_cues]      # words in a question -> the get_facts entity it asks about (all matches are fetched)
-road = '(?i)\bspeed\b(?!\s*limit)|\baadt\b|\bonrc\b|\bhmv\b|\bheavy\b|\broad\b|\bRP\b|\bposted\b|\bpeak\b'
-shift_window = '(?i)\bhours\b|\bwhen\b|\bwhat time\b|\bsign[-\s]?in\b|\bsite cleared\b|\bcleared\b|\bpick[-\s]?up\b|\bshift\b|\bwork at\b|\bweekends?\b|\bschool\b'
-speed_limit = '(?i)\bspeed limit\b|\btsl\b|\b\d{2}\s*(?:km/?h)?\s*zone\b|\btemporary speed\b|\b30\b'
-stage = '(?i)\bstages?\b|\bstaging\b|\bTMD\b|\bdiagram\b'
-checkbox = '(?i)\bticked\b|\bbus\b|\bpedestrian|\bcyclist|\bschool\b(?!\s*(?:days?|holidays?|terms?)\b)|\baged\b|\brail\b|\bparking\b|\bintersection|\bsignals?\b|\bdetour\b|\bpublic transport\b'
-risk = '(?i)\brisks?\b|\bhazard|\bresidual\b|\binitial risk\b|\bcontrols?\b'
-risk_matrix = '(?i)\bmatrix\b|\blikely\b|\blikelihood\b|\bconsequence\b|\brating\b|\bscore\b'
-contact = '(?i)\bwho\b|\bphone\b|\bcall\b|\bcontact\b|\bclient\b|\bcontractor\b|\bdesigner\b|\bemail\b|\bnumber for\b'
-authorisation = '(?i)\bauthoris|\bregulatory\b'
-road_geometry = '(?i)\bwidth\b|\blanes?\b|\bshoulder\b|\bgeometry\b'
-work_period = '(?i)\bdates?\b|\bstart\b|\bend\b|\bfinish\b|\bhow long will\b|\bduration\b|\bweeks?\b'
-figure = '(?i)\bmeter\b|\bsite plan\b|\bphoto|\bimage\b|\bfigure\b|\bmap\b'
-
-[retrieval.sheet_topics]     # a named sheet: chunk type -> question words that bring all of that sheet's chunks of the type
-sheet_distances = '(?i)\bdistances?\b|\bmeasure|\bdimension|\bhow far\b|\blength|\bmetres?\b|\b\d+\s*m\b|\bspacing\b|\bbetween\b'
-sheet_text = '(?i)\btext\b|\blabels?\b|\bwritten\b|\bwording\b|\bsays?\b|\bnotice\b|\bannotation|\bread\b|\bprinted\b|\btitle\b'
-sheet_layout = '(?i)\bwhere\b|\bposition|\blocat|\bleft\b|\bright\b|\bside\b|\border\b|\binset\b|\bnext to\b|\bbefore\b|\bafter\b|\brelative\b|\barrangement\b|\bhouse|\bplace'
-sheet_image = '(?i)\blooks?\b|\bappear|\bcolou?r|\bshape\b|\bpedestrian|\bvehicles?\b|\bwhy\b|\bchange\b|\bpurpose\b|\bunclear\b|\binferr?'
-sheet_sign_schedule = '(?i)\bsigns?\b|\bapproach|\bdriver'
-sheet_notes = '(?i)\bnotes?\b|\bcones?\b|\btaper\b|\bsafety zone\b'
-sheet_details = '(?i)\btitle block\b|\bdrawn\b|\bscale\b|\bdate\b|\brev(?:ision)?\b|\blegend\b|\bdesigner\b|\bcompany\b'
-figure_caption = '(?i)\bpictures?\b|\bphoto|\bfigure|\billustration|\boption'
-
-[retrieval.chunk_types]      # recipe -> chunk types searched (empty = all)
-fact = []
-procedure = ["narrative_section", "narrative_table_row", "procedure"]
-diagram = ["sheet_overview", "sheet_sign_schedule", "sheet_notes", "sheet_text", "sheet_layout", "sheet_distances",
-           "sheet_details", "sheet_image", "figure_caption"]
-summary = []
-general_rule = ["standard_rule"]
-baseline = []
-
-[retrieval.k]                # recipe -> chunks kept after fusion and ranking
-fact = 4
-procedure = 8
-diagram = 12
-diagram_sheet = 3            # a named sheet: best chunks of that sheet beyond its topic chunks (plus overview, split parts)
-summary = 10
-general_rule = 5
-baseline = 8
-default = 6
-
-[retrieval.calculations]     # calculation -> when the question asks for it, the stored values it combines and the result unit
-# names in `expression` are fields of one `entity` fact; `stated` is a field the document states for the same result
-# (the answer shows the cross-check); `match` picks the fact whose `match_field` the question names (for example a road)
-tsl_length = { when = '(?i)\b(?:how long|length|how far|distance)\b.*\b(?:zone|tsl|speed limit|\d{2}\s*(?:km/?h)?)\b|\b(?:zone|tsl|speed limit)\b.*\b(?:how long|length)\b', entity = "speed_limit", expression = "rp_to - rp_from", result_unit = "m", stated = "length_m" }
-site_extent = { when = '(?i)\b(?:how long|length|how far|distance)\b.*\b(?:road|site|work area|extent|street|avenue|lane)\b', entity = "road", expression = "end_rp - start_rp", result_unit = "m", stated = "", match_field = "road_name" }
-works_duration = { when = '(?i)\bhow (?:many days|long)\b.*\b(?:works?|job|programme|tmp)\b(?!.*\bzone\b)|\bduration\b', entity = "work_period", expression = "end_date - start_date", result_unit = "days", stated = "" }
 
 [retrieval.role_styles]      # Q3 style per user role (plan 5.11)
 site = "Short: the answer in one or two lines, then the source."
@@ -380,8 +310,5 @@ office = "Plain language; contacts and dates first."
 
 [retrieval.responses]        # fixed responses (plan 5.13); {placeholders} are filled in code
 ask_back = "I found {n} TMPs: {options}. Which one?"
-no_match = "I couldn't find a TMP for that address or number. Can you give the TMP number (for example {example})?"
 not_in_tmp = "The TMP doesn't say {what}."
-out_of_scope = "That needs the official standard's tables, which aren't loaded. The TMP itself says: {what}"
 no_access = "That TMP isn't available to you."
-no_tmp = "Which TMP is this about? Give the TMP number (for example {example}) or the site address."

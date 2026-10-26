@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from . import logging_ as lg
-from .models import atomic_write_text
+from .ingestion.models import atomic_write_text
 
 
 class CacheMiss(Exception):

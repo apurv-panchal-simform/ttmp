@@ -3,6 +3,7 @@ retry with backoff for throttling and server errors, and typed errors instead of
 from __future__ import annotations
 
 import http.client
+import random
 import ssl
 import threading
 import time
@@ -115,9 +116,13 @@ def shared_keepalive() -> KeepAliveTransport:
 
 
 def with_retry(transport: Transport, *, retries: int = 3, backoff_s: float = 1.0, max_backoff_s: float = 30.0,
-               sleep: Callable[[float], None] = time.sleep) -> Transport:
+               jitter: float = 0.0, sleep: Callable[[float], None] = time.sleep) -> Transport:
     """Wrap a transport so 408/429/5xx responses and transient errors are retried with exponential backoff
-    (honouring Retry-After). The last response is returned after the final attempt; the caller decides."""
+    (honouring Retry-After). ``jitter`` stretches each wait by a random 0..jitter share, so calls running side by
+    side do not retry in step. The last response is returned after the final attempt; the caller decides."""
+    def pause(delay: float) -> None:
+        sleep(min(max_backoff_s, delay * (1 + random.random() * jitter) if jitter else delay))
+
     def wrapped(method: str, url: str, headers: dict[str, str], body: bytes | None):
         for attempt in range(retries + 1):
             try:
@@ -125,13 +130,13 @@ def with_retry(transport: Transport, *, retries: int = 3, backoff_s: float = 1.0
             except TransientServiceError:
                 if attempt == retries:
                     raise
-                sleep(min(max_backoff_s, backoff_s * 2 ** attempt))
+                pause(backoff_s * 2 ** attempt)
                 continue
             if status not in RETRY_STATUSES or attempt == retries:
                 return status, resp_headers, data
             retry_after = {k.lower(): v for k, v in resp_headers.items()}.get("retry-after", "")
             delay = float(retry_after) if retry_after.replace(".", "", 1).isdigit() else backoff_s * 2 ** attempt
-            sleep(min(max_backoff_s, delay))
+            pause(delay)
         raise AssertionError("unreachable")                          # pragma: no cover
     return wrapped
 

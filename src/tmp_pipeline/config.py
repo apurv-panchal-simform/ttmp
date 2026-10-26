@@ -224,35 +224,27 @@ class ChunksCfg:
     procedure_table: re.Pattern[str]                    # a table whose text matches this holds procedures
     boilerplate_min_pages: int                          # the same text on this many pages is boilerplate
     default_access_groups: tuple[str, ...]
+    derived: dict[str, dict[str, str]]                  # worked figures written into chunks (entity, expression, unit, ...)
 
 
 @dataclass(frozen=True)
 class RetrievalCfg:
-    tmp_ref: re.Pattern[str]                            # a TMP reference; groups: company prefix, year, number
-    time_mention: re.Pattern[str]                       # a time or day in a question (half of the time_check rule)
-    follow_up: re.Pattern[str]                          # a message that leans on the previous turn (Q1 rewrites it)
-    road_suffix: re.Pattern[str]                        # a word that ends a road name ("Avenue", "Rd")
+    """Plain RAG: one hybrid search in the chosen TMP, one model call. These are the search settings and fixed texts."""
     candidates: int                                     # keyword and vector candidates per search, before fusion
     rrf_k: int                                          # reciprocal rank fusion constant
-    detail_boost: float                                 # rank bonus for chunks matching a TMD, road or RP in the question
     min_score_ratio: float                              # keyword candidates scoring below this share of the best are dropped
     max_linked_sheets: int                              # diagram overviews one search may add for the sheets its hits name
+    search_k: int                                       # chunks one search keeps (expansion may add as many again)
     context_budget: int                                 # tokens for the answer context; chunks are cut first
-    sheet_whole: re.Pattern[str]                        # a question about a named sheet that needs all of it
-    sheet_topics: dict[str, re.Pattern[str]]            # sheet chunk type -> question words that need all of it
-    calendar: str                                       # school-term and holiday data file in tmp_pipeline/data ("" = none)
     timezone: str
     default_role: str
-    rules: dict[str, re.Pattern[str]]                   # question type -> cue, in precedence order (plan 5.4)
-    day_types: dict[str, re.Pattern[str]]               # day type in a question -> how it is asked
-    day_type_facts: dict[str, str]                      # day type in a question -> canonical day type in the facts
-    entities: dict[str, str]                            # get_facts entity -> stored entities ("a|b"; "*" = built in code)
-    entity_cues: dict[str, re.Pattern[str]]             # words in a question -> the get_facts entity it asks about
-    chunk_types: dict[str, tuple[str, ...]]             # recipe -> chunk types searched (empty = all)
-    k: dict[str, int]                                   # recipe -> chunks kept
-    calculations: dict[str, dict[str, str]]             # calculation -> when, entity, expression, result_unit, stated
     role_styles: dict[str, str]                         # user role -> Q3 answer style
-    responses: dict[str, str]                           # fixed responses (plan 5.13)
+    responses: dict[str, str]                           # fixed responses
+    tools: bool                                         # the answer model may call the code tools (calculate, time_check ...)
+    max_tool_rounds: int                                # rounds of tool calls before the answer must be written
+    max_tool_calls: int                                 # tool calls in all, for one question
+    calendar: str                                       # school terms and public holidays (data/<name>); "" = none
+    day_type_facts: dict[str, str]                      # day type in a question -> how the facts write it
 
 
 @dataclass(frozen=True)
@@ -377,24 +369,13 @@ def _validate(c: Config) -> None:
     check(k.sign_schedule_max > 0 and k.boilerplate_min_pages > 1, "chunks: sign_schedule_max > 0, boilerplate_min_pages > 1")
     check(k.site_pattern.groups >= 1, "chunks.site_pattern: needs a group for the address")
     r = c.retrieval
-    check(r.tmp_ref.groups == 3, "retrieval.tmp_ref: needs groups for prefix, year and number")
     check(r.candidates > 0 and r.rrf_k > 0 and r.context_budget > 0, "retrieval: candidates, rrf_k, context_budget > 0")
     check(0.0 <= r.min_score_ratio < 1.0, "retrieval.min_score_ratio: must be in [0, 1)")
+    check(r.search_k > 0, "retrieval.search_k: must be > 0")
     check(r.max_linked_sheets >= 0, "retrieval.max_linked_sheets: must be >= 0")
-    check("default" in r.k and all(v > 0 for v in r.k.values()), "retrieval.k: needs a positive 'default'")
+    check(r.max_tool_rounds >= 0 and r.max_tool_calls >= 0, "retrieval: max_tool_rounds and max_tool_calls must be >= 0")
     check(r.default_role in r.role_styles, "retrieval.default_role: must be a key of retrieval.role_styles")
-    check(set(r.day_type_facts) <= set(r.day_types), "retrieval.day_type_facts: keys must be retrieval.day_types keys")
-    check(set(r.day_type_facts.values()) <= set(c.facts.day_types),
-          "retrieval.day_type_facts: values must be facts.day_types keys")
-    check(set(r.entity_cues) <= set(r.entities), "retrieval.entity_cues: keys must be retrieval.entities keys")
-    for name, calc in r.calculations.items():
-        missing = {"when", "entity", "expression", "result_unit"} - set(calc)
-        check(not missing, f"retrieval.calculations.{name}: missing {', '.join(sorted(missing))}")
-        try:
-            re.compile(calc.get("when", ""))
-        except re.error as e:
-            raise ConfigError(f"retrieval.calculations.{name}.when: bad regex: {e}") from None
-    for key in ("ask_back", "no_match", "not_in_tmp", "out_of_scope", "no_access", "no_tmp"):
+    for key in ("ask_back", "not_in_tmp", "no_access"):
         check(key in r.responses, f"retrieval.responses: missing {key!r}")
     f = c.facts
     check(f.title_max_words > 0, "facts.title_max_words: must be positive")

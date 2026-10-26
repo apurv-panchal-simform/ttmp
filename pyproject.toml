@@ -34,19 +34,19 @@ ui = [
 ]
 
 [project.scripts]
-tmp-pipeline = "tmp_pipeline.run:main"
-tmp-pipeline-di = "tmp_pipeline.di.run:main"
-tmp-pipeline-gold = "tmp_pipeline.gold.score:main"
-tmp-pipeline-facts = "tmp_pipeline.facts.cli:main_facts"
-tmp-pipeline-review = "tmp_pipeline.facts.cli:main_review"
-tmp-pipeline-db = "tmp_pipeline.db.run:main"
-tmp-pipeline-chunks = "tmp_pipeline.chunks.cli:main"
-tmp-pipeline-index = "tmp_pipeline.search.run:main"
+tmp-pipeline = "tmp_pipeline.ingestion.run:main"
+tmp-pipeline-di = "tmp_pipeline.ingestion.extract.di.run:main"
+tmp-pipeline-gold = "tmp_pipeline.ingestion.score:main"
+tmp-pipeline-facts = "tmp_pipeline.ingestion.facts.cli:main_facts"
+tmp-pipeline-review = "tmp_pipeline.ingestion.facts.cli:main_review"
+tmp-pipeline-db = "tmp_pipeline.ingestion.embedding.db.run:main"
+tmp-pipeline-chunks = "tmp_pipeline.ingestion.chunking.cli:main"
+tmp-pipeline-index = "tmp_pipeline.ingestion.embedding.search.run:main"
 tmp-pipeline-ask = "tmp_pipeline.retrieval.cli:main"
-tmp-pipeline-qa = "tmp_pipeline.gold.questions:main"
-tmp-pipeline-cosmos = "tmp_pipeline.cosmos.cli:main"
-tmp-pipeline-ui = "tmp_pipeline.ui.launch:main"
-tmp-pipeline-synthetic = "tmp_pipeline.gold.synthetic:main"
+tmp-pipeline-qa = "tmp_pipeline.retrieval.eval:main"
+tmp-pipeline-cosmos = "tmp_pipeline.ingestion.embedding.cosmos.cli:main"
+tmp-pipeline-ui = "tmp_pipeline.retrieval.ui.launch:main"
+tmp-pipeline-synthetic = "tmp_pipeline.retrieval.synthetic:main"
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]
@@ -62,6 +62,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests", "tests/ingestion", "tests/retrieval"]       # tests share helpers and fixtures across the folders
 markers = [
     "sample: needs tests/data/sample.pdf (fails instead of skipping when TMP_REQUIRE_SAMPLE=1)",
     "live: calls a live Azure service; skipped without credentials",
@@ -71,7 +72,7 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py313"
-src = ["src", "tests"]
+src = ["src", "tests", "tests/ingestion", "tests/retrieval"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

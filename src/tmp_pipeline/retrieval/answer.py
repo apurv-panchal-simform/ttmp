@@ -1,24 +1,25 @@
-"""Step 5, write the answer (plan 5.11), the one repair (5.12) and the fixed responses (5.13).
+"""Write the answer (Q3), repair it once (Q4) and the fixed replies.
 
-Q3 writes the answer from the context only; Q4 rewrites it once when the check fails. When there is no model, or
-the repair still fails, the safe answer is built in code from the same context: the relevant facts, results and
-passages with their sources, so it passes the check by construction.
+Q3 writes the answer from the context only; Q4 rewrites it once when the check fails. When there is no model, or the
+repair still fails, the safe answer is built in code from the same context: the facts and passages with their sources,
+so it passes the check by construction.
 """
 from __future__ import annotations
 
-import re
+import json
+import time
+from dataclasses import dataclass, field
 
 from ..config import Config
-from ..model import prompts
-from ..model.client import ModelClient, ask
-from .classify import Reading
-from .context import Context, conflict_line, page_span, show, versions_text
-from .hybrid import tokens
-from .recipes import Evidence
-from .store import DocInfo
-from .tools import FactItem, Value
+from ..llm import ModelClient, ask, map_parallel
+from . import prompts
+from .context import Context
+from .search import tokens
+from .tools import TOOLS, ToolEnv, entity_catalog, render, run_tool
+from .words import rstrip_lines
 
 _CHUNK_CHARS = 420
+_MAX_PASSAGES = 4
 
 
 def role_style(cfg: Config, role: str) -> str:
@@ -30,47 +31,85 @@ def fixed(cfg: Config, key: str, **values: object) -> str:
     return cfg.retrieval.responses[key].format(**values)
 
 
-def write(model: ModelClient | None, reading: Reading, ctx: Context, style: str) -> str | None:
-    out = ask(model, prompts.q3_answer(reading.standalone, ctx.text, style))
-    text = str((out or {}).get("answer") or "").strip()
-    return text or None
+def _text(out: dict | None) -> str | None:
+    return str((out or {}).get("answer") or "").strip() or None
 
 
-def repair(model: ModelClient | None, problems: list[str], answer: str, reading: Reading, ctx: Context) -> str | None:
-    out = ask(model, prompts.q4_repair(problems, answer, reading.standalone, ctx.text))
-    text = str((out or {}).get("answer") or "").strip()
-    return text or None
+ASK_BACK = "\x00ask_back"          # the model found the question needs a TMP that was not chosen
+
+
+@dataclass
+class ToolCall:
+    name: str
+    args: dict
+    result: dict
+    ms: float = 0.0
+
+    def block(self) -> str:
+        return render(self.name, self.args, self.result)
+
+    def as_dict(self) -> dict:
+        return {"tool": self.name, "args": self.args, "result": self.result, "ms": round(self.ms)}
+
+
+@dataclass
+class Answered:
+    answer: str | None                  # None: no model answered
+    calls: list[ToolCall] = field(default_factory=list)
+
+
+def write(model: ModelClient | None, ctx: Context, style: str, now_nz: str, turns: list[str], env: ToolEnv | None = None,
+          cfg: Config | None = None, hint: str = "", library: bool = False) -> Answered:
+    """Q3, in rounds: the model answers from the context, or asks for tools; the code runs them (calls of one round side
+    by side) and the model goes on with the results, until it answers. At most ``max_tool_rounds`` rounds and
+    ``max_tool_calls`` calls, then the answer has to be written without tools. With no ``env`` there are no tools."""
+    r = cfg.retrieval if cfg else None
+    offered = tuple(json.dumps(t) for t in TOOLS) if (env is not None and r and r.tools and r.max_tool_rounds > 0) else ()
+    thread: list[str] = []
+    calls: list[ToolCall] = []
+    entities = entity_catalog(env) if offered and env is not None else ""
+    rounds = r.max_tool_rounds if offered and r else 0              # rounds that may call tools; one more writes the answer
+    for round_no in range(rounds + 1):
+        tools = offered if round_no < rounds and r and len(calls) < r.max_tool_calls else ()
+        data = ask(model, prompts.q3_answer(ctx.question, ctx.text, style, now_nz, turns, tools, tuple(thread), library, hint, entities))
+        if data is None:
+            return Answered(None, calls)
+        wanted = data.get("tool_calls") if tools else None
+        if not wanted:
+            return Answered(ASK_BACK if data.get("ask_back") else _text(data), calls)
+        assert env is not None and r is not None
+        wanted = wanted[:max(0, r.max_tool_calls - len(calls))]
+        thread.append(json.dumps({"role": "assistant", "content": None, "tool_calls": [
+            {"id": c["id"], "type": "function", "function": {"name": c["name"], "arguments": json.dumps(c.get("arguments") or {})}}
+            for c in wanted]}))
+
+        def run(c: dict, env: ToolEnv = env) -> ToolCall:
+            t0 = time.perf_counter()
+            args = c.get("arguments") if isinstance(c.get("arguments"), dict) else {}
+            return ToolCall(c["name"], args, run_tool(c["name"], args, env), (time.perf_counter() - t0) * 1000)
+
+        done = map_parallel(run, wanted)
+        calls += done
+        thread += [json.dumps({"role": "tool", "tool_call_id": c["id"], "content": json.dumps(d.result, ensure_ascii=False, default=str)})
+                   for c, d in zip(wanted, done, strict=True)]
+    return Answered(None, calls)
+
+
+def repair(model: ModelClient | None, problems: list[str], answer: str, ctx: Context, now_nz: str) -> str | None:
+    return _text(ask(model, prompts.q4_repair(problems, answer, ctx.question, ctx.text, now_nz)))
+
+
+def clean(text: str) -> str:
+    return rstrip_lines(text)
 
 
 # --- the safe answer ---------------------------------------------------------------------------------------------
-
-def _value(v: Value) -> str:
-    if v.status == "conflict" and v.value is None and v.versions:
-        return f"{v.field.replace('_', ' ')}: the document gives different values, {versions_text(v)}"
-    text = f"{v.field.replace('_', ' ')} {show(v.value)}" + (f" {v.unit}" if v.unit and v.value is not None else "")
-    if v.status == "unverified":
-        text += " (unconfirmed)"
-    elif v.status == "conflict":
-        text += f" (conflict {', '.join(v.conflict_ids)}; see below)" if v.conflict_ids else " (conflict)"
-    return text
-
-
-def _fact(it: FactItem, question: str = "", fields: set[str] | None = None) -> str:
-    vals = [v for v in it.values if (fields is None or v.field in fields) and not isinstance(v.value, dict)
-            and not (isinstance(v.value, list) and any(isinstance(x, dict) for x in v.value))]
-    vals = vals or [v for v in it.values if fields is None or v.field in fields]
-    q = set(re.findall(r"[a-z]+", question.lower()))
-    vals.sort(key=lambda v: -sum(w in q for w in v.field.split("_")))      # the fields the question names first
-    struck = " (struck through, not applicable)" if it.applicability == "not_applicable" else ""
-    return f"{it.label}{struck}: " + "; ".join(_value(v) for v in vals[:10]) + f" ({it.source})."
-
 
 def _clip(text: str, n: int = _CHUNK_CHARS) -> str:
     text = " ".join(text.split())
     if len(text) <= n:
         return text
-    cut = text[:n].rsplit(" ", 1)[0]
-    return cut.rstrip(",;:") + " …"
+    return text[:n].rsplit(" ", 1)[0].rstrip(",;:") + " …"
 
 
 def excerpt(content: str, question: str, n: int = _CHUNK_CHARS) -> str:
@@ -84,107 +123,17 @@ def excerpt(content: str, question: str, n: int = _CHUNK_CHARS) -> str:
     return ("… " if start else "") + _clip("\n".join(lines[start:]), n)
 
 
-def _chunk(h_content: str, crumb: str, generic: bool, struck: bool, question: str = "") -> str:
-    label = "General standard (the contractor's, not specific to this site): " if generic else \
-        "Struck through (does not apply): " if struck else ""
-    return f"{label}{excerpt(h_content, question)} ({crumb})"
-
-
 def _crumb(header: str) -> str:
-    first = header.split("\n", 1)[0]
-    parts = [p.strip() for p in first.split("›")][1:]
+    parts = [p.strip() for p in header.split("\n", 1)[0].split("›")][1:]
     return ", ".join(parts).replace(" — page ", ", p.").replace(" — pages ", ", pp.")
 
 
-def _yes(v: object) -> str:
-    return "Yes" if v is True else "No" if v is False else "Not certain"
-
-
-def safe_answer(reading: Reading, ev: Evidence, ctx: Context, cfg: Config, doc: DocInfo | None) -> str:
-    out: list[str] = []
-    types = set(reading.types)
-    for c in ev.calcs:
-        if "error" in c:
-            continue
-        cross = f", which {c['cross_check']}" if c.get("cross_check") else ""
-        srcs = [s for s in c.get("sources") or [] if s not in cross]
-        out.append(f"{c['result']} {c['unit']}: {c['working']}{cross}" + (f" ({'; '.join(srcs)})" if srcs else "") + ".")
-    for t in ev.times:
-        src = "; ".join(x for x in t.get("sources") or [] if x)
-        if t.get("stages"):
-            out.append("By stage: " + "; ".join(f"{s['stage']}: {_yes(s['allowed']).lower()} ({s['reason']})"
-                                                for s in t["stages"]) + f" ({src}).")
-        elif t.get("per_day_type"):
-            out.append(f"Not certain: {t['reason']}. " + " ".join(
-                f"On {p['day_type'].replace('_', ' ')}s: {_yes(p['allowed']).lower()}, {p['reason']} ({p['window']})."
-                for p in t["per_day_type"]) + f" ({src}).")
-        else:
-            window = f" ({t['window']})" if t.get("window") else ""
-            out.append(f"{_yes(t.get('allowed'))}. {t.get('reason', '')}{window} ({src}).")
-    if ev.status:
-        s = ev.status
-        signed = [o for o in s["signoffs"] if o["status"] == "signed"]
-        unsigned = [o for o in s["signoffs"] if o["status"] == "unsigned"]
-        struck = [o for o in s["signoffs"] if o["status"] == "not_applicable"]
-        out.append(f"Approval status: {s['approval'].replace('_', ' ')}.")
-        if signed:
-            out.append("Signed: " + "; ".join(f"{o['role'].replace('_', ' ')} ({o.get('name') or 'no name'}, "
-                                              f"p.{o['page']})" for o in signed) + ".")
-        if unsigned:
-            out.append("Not signed (blank): " + "; ".join(f"{o['role'].replace('_', ' ')}"
-                                                          + (f" ({o['name']})" if o.get("name") else "")
-                                                          + f", p.{o['page']}" for o in unsigned) + ".")
-        if struck:
-            out.append("Struck through, so not applicable: " + "; ".join(
-                f"{o['role'].replace('_', ' ')}, p.{o['page']}" for o in struck) + ".")
-        if "status" in types:
-            for c in s["conflicts"]:
-                out.append(f"Conflict {c['id']} {c['title']}: " + "; ".join(
-                    f"\"{v['value']}\" ({page_span(v.get('pages') or [])})" for v in c["versions"]) + ".")
-            for m in s["mismatches"]:
-                out.append(f"Rating mismatch: {m['detail']}.")
-    for t in ev.tmd:
-        if t.get("found"):
-            out.append(f"{t['tmd_id']} is \"{t['title']}\" (p.{t['page']}).")
-    if ev.tmps:
-        out.append("Matching TMPs: " + "; ".join(
-            f"{d.tmp_ref}, {d.site_address or ', '.join(d.roads)}, {d.work_start or '?'} to {d.work_end or '?'}"
-            for d in ev.tmps) + ".")
-    elif "across_tmps" in types:
-        out.append("No TMP you can see matches.")
-    if ev.versions:
-        out.append(f"{len(ev.versions['changed'])} value(s) changed between {' and '.join(ev.versions.get('labels', []))}.")
-    show_facts = bool(types & {"fact", "time_check", "calculation", "diagram"}) or not types or not out
-    if show_facts:
-        items = [it for it in ev.facts if not (ev.calcs and it.entity not in {c.get("what", "").split("[")[0] for c in ev.calcs})]
-        for it in items[:10]:
-            out.append(_fact(it, reading.standalone))
-    show_chunks = bool(types & {"procedure", "general_rule", "summary", "diagram", "fact"}) or not types or not out
-    if show_chunks:
-        used = 0
-        for h_id in ctx.chunk_ids:
-            h = next((x for x in ev.chunks if x.chunk.chunk_id == h_id), None)
-            if h is None:
-                continue
-            md = h.chunk.metadata
-            out.append(_chunk(h.chunk.content, _crumb(h.chunk.header), md.get("scope") == "generic",
-                              md.get("applicability") == "not_applicable", reading.standalone))
-            used += 1
-            if used >= (3 if types & {"procedure", "general_rule", "diagram"} else 2):
-                break
-    named = {c["id"] for c in (ev.status or {}).get("conflicts", [])} if "status" in types else set()
-    for conflict in ev.conflicts:
-        if conflict.conflict_id not in named:
-            out.append(f"Note, conflict {conflict_line(conflict)}.")
-    for n in ev.notes:
-        out.append(f"Not checked: {n}.")
-    if "out_of_scope" in types:
-        lead = fixed(cfg, "out_of_scope", what="").rstrip(": ").rstrip()
-        out.insert(0, lead + (":" if out else "."))
-    if not out:
-        return fixed(cfg, "not_in_tmp", what="anything that answers this question")
-    return "\n".join(out)
-
-
-def clean(text: str) -> str:
-    return re.sub(r"[ \t]+\n", "\n", text).strip()
+def safe_answer(ctx: Context, cfg: Config) -> str:
+    """The code-built answer: the best passages with their sources (so it passes the check by construction)."""
+    out = [f"Tool result: {b}" for b in ctx.tools[:3]]
+    for h in ctx.hits[:_MAX_PASSAGES]:
+        md = h.chunk.metadata
+        label = ("General standard (the contractor's, not specific to this site): " if md.get("scope") == "generic"
+                 else "Struck through (does not apply): " if md.get("applicability") == "not_applicable" else "")
+        out.append(f"{label}{excerpt(h.chunk.content, ctx.question)} ({_crumb(h.chunk.header)})")
+    return "\n".join(out) if out else fixed(cfg, "not_in_tmp", what="anything that answers this question")

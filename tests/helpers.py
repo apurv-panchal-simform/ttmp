@@ -1,9 +1,9 @@
 """Shared test helpers (plain functions; fixtures live in conftest.py)."""
 from tmp_pipeline.config import load_config
-from tmp_pipeline.furniture import apply_furniture
-from tmp_pipeline.layers.reader import read_layers
-from tmp_pipeline.layers.to_elements import build_elements
-from tmp_pipeline.zones import assign_zones
+from tmp_pipeline.ingestion.extract.furniture import apply_furniture
+from tmp_pipeline.ingestion.extract.layers.reader import read_layers
+from tmp_pipeline.ingestion.extract.layers.to_elements import build_elements
+from tmp_pipeline.ingestion.extract.zones import assign_zones
 
 CFG = load_config()
 
@@ -52,7 +52,7 @@ def add_box(store, x0, y0, ticked, page=1, size=12, parent=None, zone="forms"):
 
 
 def store_with_page(page=1):
-    from tmp_pipeline.models import ElementStore, PageInfo
+    from tmp_pipeline.ingestion.models import ElementStore, PageInfo
     s = ElementStore("sha256:test")
     s.pages[page] = PageInfo(width_pt=842, height_pt=595)
     return s
@@ -60,9 +60,9 @@ def store_with_page(page=1):
 
 def run_handler(store, handler, route_name):
     """Route a store with only ``handler`` real (stubs elsewhere) and return (records, router result)."""
-    from tmp_pipeline.handlers.stubs import stub_registry
+    from tmp_pipeline.ingestion.extract.handlers.stubs import stub_registry
+    from tmp_pipeline.ingestion.extract.router import route
     from tmp_pipeline.records import RecordStore
-    from tmp_pipeline.router import route
     reg = stub_registry()
     reg.replace(handler)
     records = RecordStore(store.doc_id)

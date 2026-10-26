@@ -3,12 +3,7 @@ import json
 import pytest
 
 from tmp_pipeline.cache import CacheMiss, FileCache, stable_key
-from tmp_pipeline.transport import (
-    ServiceError,
-    TransientServiceError,
-    raise_for_status,
-    with_retry,
-)
+from tmp_pipeline.transport import ServiceError, TransientServiceError, raise_for_status, with_retry
 
 
 def test_stable_key_ignores_dict_order_and_changes_with_content():

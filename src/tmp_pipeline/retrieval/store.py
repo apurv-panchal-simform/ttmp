@@ -7,7 +7,6 @@ the ``User`` so access rules apply inside the store, never in a prompt.
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -15,11 +14,10 @@ from pathlib import Path
 from typing import Protocol
 
 from .. import logging_ as lg
-from ..chunks.model import ChunkSet
 from ..errors import PipelineError
-from ..facts.model import Facts
+from ..ingestion.chunking.model import ChunkSet
+from ..ingestion.facts.model import Facts
 from ..records import Status
-from .details import norm_ref
 
 
 class NoAccessError(PipelineError):
@@ -51,12 +49,12 @@ class DocInfo:
     suburb: str | None = None
     suburbs: list[str] = field(default_factory=list)
     roads: list[str] = field(default_factory=list)
-    organisations: list[str] = field(default_factory=list)
     work_start: str | None = None
     work_end: str | None = None
     approval_status: str | None = None
-    has_conflict: bool = False
     access_groups: list[str] = field(default_factory=list)
+    organisations: list[str] = field(default_factory=list)   # contacts and sign-off organisations
+    has_conflict: bool = False
     written: float = 0.0                # tie-breaker between two files of the same version
 
     def label(self) -> str:
@@ -71,12 +69,12 @@ class FactsStore(Protocol):
     def chunks(self, doc_id: str, user: User) -> ChunkSet | None: ...
 
 
-_VERSION = re.compile(r"(?i)^V?(\d+)$")
-
-
 def version_number(text: object) -> int:
-    m = _VERSION.match(str(text or "").strip())
-    return int(m.group(1)) if m else 1
+    """"V2", "v2" or "2" -> 2; anything else -> 1."""
+    s = str(text or "").strip()
+    if s[:1] in ("V", "v"):
+        s = s[1:]
+    return int(s) if s.isascii() and s.isdigit() else 1
 
 
 def tmp_reference(facts: Facts) -> tuple[str | None, list[str]]:
@@ -109,22 +107,18 @@ def doc_info(facts: Facts, card: dict | None = None, version: object = None, acc
              if "road_name" in f.fields and f.fields["road_name"].value]
     suburbs = list(dict.fromkeys(str(f.fields["suburb"].value) for f in facts.of("road")
                                  if "suburb" in f.fields and f.fields["suburb"].value))
-    orgs: list[str] = []
-    for c in facts.of("contact"):
-        for key in ("organisation", "name"):
-            fv = c.fields.get(key)
-            if fv is not None and fv.value:
-                orgs.append(str(fv.value))
-    orgs += [s.organisation for s in facts.signoffs if s.organisation]
-    orgs += [str(card[k]) for k in ("client", "contractor", "rca", "designer") if card.get(k)]
     start, end = _first(facts, "work_period", "start_date"), _first(facts, "work_period", "end_date")
+    orgs = [str(f.fields["organisation"].value) for f in facts.of("contact")
+            if "organisation" in f.fields and f.fields["organisation"].value]
+    orgs += [s.organisation for s in facts.signoffs if s.organisation]
     return DocInfo(
         doc_id=facts.doc_id, tmp_ref=ref or card.get("tmp_ref") or facts.doc_id.split(":")[-1][:12],
         aliases=aliases or list(card.get("tmp_ref_aliases") or []), version=version_number(version),
         site_address=card.get("site_address"), suburb=card.get("suburb") or (suburbs[0] if suburbs else None),
-        suburbs=suburbs, roads=roads, organisations=list(dict.fromkeys(orgs)),
+        suburbs=suburbs, roads=roads,
         work_start=str(start) if start else card.get("work_start"), work_end=str(end) if end else card.get("work_end"),
-        approval_status=facts.approval.status if facts.approval else None, has_conflict=bool(facts.conflicts),
+        approval_status=facts.approval.status if facts.approval else None,
+        organisations=list(dict.fromkeys(o for o in orgs if o and o != "None")), has_conflict=bool(facts.conflicts),
         access_groups=list(access_groups if access_groups is not None else card.get("access_groups") or []),
         written=written)
 
@@ -185,10 +179,6 @@ class LocalStore:
             return None
         return ChunkSet(cs.doc_id, cs.versions, cs.facts_revision,
                         [c for c in cs.chunks if user.may_read(c.metadata.get("access_groups") or [])])
-
-    def known_refs(self) -> set[str]:
-        """Every stored TMP reference (normalised), readable or not: only used to say "not available to you"."""
-        return {norm_ref(r) for _, info in self._index.values() for r in (info.tmp_ref, *info.aliases)}
 
     def folder(self, doc_id: str) -> Path | None:
         hit = self._index.get(doc_id)

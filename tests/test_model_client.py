@@ -4,7 +4,7 @@ import pytest
 
 from tmp_pipeline import logging_ as lg
 from tmp_pipeline.cache import FileCache
-from tmp_pipeline.model.client import (
+from tmp_pipeline.llm import (
     CachedClient,
     DisabledClient,
     FakeClient,

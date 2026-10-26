@@ -1,13 +1,17 @@
 # TMP pipeline
 
 Extraction, chunking and retrieval for New Zealand Temporary Traffic Management Plans. The design is in
-`TMP Combined Plan.html` (not committed; it lives next to the repo). The build has 8 phases: reading, handlers,
-diagrams and images, facts, chunking and index, retrieval L0+1, Streamlit UI, operations. This repo is at
-**Phase 7: the Streamlit UI**, on **Phase 6: Retrieval Level 0 + 1** (resolve the TMP, rules + Q1 classifier, recipes per question type, read-only tools
-including `calculate` and `time_check`, context assembly, Q3 answer, code answer check, one Q4 repair, fixed
-responses, question test set), built on Phase 5 (chunking and index), Phase 4 (facts), Phase 3 (diagrams and images),
-Phase 2 (handlers) and Phase 1 (reading). A live Azure OpenAI chat client exists (`--model live`), but no live model,
-embedding or AI Search call has been made yet: everything is tested with fakes, replay fixtures and fake transports.
+`TMP Combined Plan.html` (not committed; it lives next to the repo). The code is two folders:
+
+- `src/tmp_pipeline/ingestion/`: a PDF becomes chunks and embeddings (`extract/` reads the PDF, `facts/`, `chunking/`,
+  `embedding/` with the Azure AI Search, Cosmos DB and PostgreSQL stores).
+- `src/tmp_pipeline/retrieval/`: a question becomes a checked answer (plain RAG, below), plus the Streamlit UI (`ui/`),
+  the question test set (`eval.py`) and the synthetic test TMPs (`synthetic.py`).
+
+Shared code is plain files at the package root: `config.py`, `llm.py` (model clients and cost), `logging_.py`,
+`tracing.py`, `cache.py`, `transport.py`, `records.py`, `errors.py`, `constants.py`; `data/` and `templates/` hold
+package data. A live Azure OpenAI client exists (`--model live`); everything is also tested with fakes, replay fixtures
+and fake transports.
 
 ```
 uv sync
@@ -100,6 +104,9 @@ facts + records + elements -> build_chunks -> summarise_and_embed -> chunks.json
                                lineage)        vectors)
 ```
 
+Module paths below are inside `src/tmp_pipeline/ingestion/` (`extract/` holds the intake, layers, handlers, diagrams, `di/`,
+router, zones and furniture modules) unless a folder is named.
+
 - `config.py` + `templates/default.toml`: typed, validated config. Layout cues (header band, rating colours,
   form names) and tunable thresholds live in the template, so a new company's layout is a new file, not a code
   change. Unknown keys, wrong types and bad regexes fail at load with the key path.
@@ -109,7 +116,7 @@ facts + records + elements -> build_chunks -> summarise_and_embed -> chunks.json
 - `router.py`: `decide()` is pure (one `Decision` per element, from ordered named rules); `apply_decisions()`
   writes them back; `route()` runs handlers with per-element failure isolation.
 - `contracts.py`, `records.py`: the handler contract and the records model (below).
-- `model/`: model client interface, caching, recording and replay. No live client yet.
+- `llm.py` (package root): the model client interface, caching, recording and replay, the live Azure OpenAI client and the call cost.
 - `handlers/`: `text.py` (§2.1), `tables.py` + `grid.py` (§2.2), `risk.py` (§2.3), `checkboxes.py` (§2.4); `numerics.py`
   (§2.5); `diagram.py` + `diagram_model.py` (§2.6), `image.py` + `imageread.py` + `imageio.py` (§2.7). `build_registry()`
   wires them. The counting stubs (`handlers/stubs.py`) remain for tests of the router alone.
@@ -122,11 +129,11 @@ facts + records + elements -> build_chunks -> summarise_and_embed -> chunks.json
   elements; the stage does, and the diagram handler reads its `SheetStore`.
 - `catalog.py` + `templates/catalog.yaml`: the minimal schema catalog (entities, fields, synonyms, units, critical,
   section headings). Synonyms drive code; descriptions drive prompts; adding a field never edits a prompt.
-- `model/`: `prompts.py` (X2-X10 text from the plan, versioned), `validators.py` (quote verbatim, value in quote, unit
+- `prompts.py` (X2-X13 text from the plan, versioned), `validators.py` (quote verbatim, value in quote, unit
   matches, X2/X4/X6 output checks; for images, cited words must exist, hold the value and sit together, X8 claims
-  may only cite existing symbols and numbers on the sheet), `client.py` (interface, cache, record/replay). Without a model, unknown
+  may only cite existing symbols and numbers on the sheet), `llm.py` (interface, cache, record/replay). Without a model, unknown
   headings stay unnamed, X5-only fields are absent, and critical facts nobody judged are stored `unverified`.
-- `gold/`: the scorer for the extraction gold set (§7.1), including sheet facts (legend, notes, roads exact; symbol
+- `score.py`: the scorer for the extraction gold set (§7.1), including sheet facts (legend, notes, roads exact; symbol
   recall and precision). `tests/data/gold/sample.gold.json` is a **draft** keyed by
   the same person who wrote the extractor; it needs an independent second keying before its numbers mean accuracy.
 - `facts/` (Phase 4, plan part 3): records stay as the handlers wrote them; facts are built beside them.
@@ -137,17 +144,17 @@ facts + records + elements -> build_chunks -> summarise_and_embed -> chunks.json
   every source and clashing ones become `conflict`; `pointers.py` stores "See Above" as a link; `links.py` links facts to
   sheets and sections; `signoff.py` reads sign-off grids by label and computes approval; `checks.py` runs the ten
   rules of plan 3.3 (ids C-001... in rule order); `review.py` builds the review list and applies corrections.
-- `db/`: the PostgreSQL facts store (`schema.sql`, writer, CLI), an optional extra. Like `di/`, the core never
+- `embedding/db/`: the PostgreSQL facts store (`schema.sql`, writer, CLI), an optional extra. Like `di/`, the core never
   imports it (a test enforces this). Until phase 8 `facts.json` is canonical and the database is loaded from it.
-- `chunks/` (Phase 5, plan part 4): `build.py` has one builder per chunk type (doc card, stakeholders, activity, road,
+- `chunking/` (Phase 5, plan part 4): `build.py` has one builder per chunk type (doc card, stakeholders, activity, road,
   schedule, speed limit, stage, form fields, yes/no questions, vulnerable users, risk matrix, register rows,
   narrative sections and table rows, procedures by operation x install/removal, sheet overview / sign schedule / notes,
   figure captions, sign-offs, standard rules, other); `text.py` writes values verbatim with "(unconfirmed)" and conflicts
   in words; `size.py` merges small siblings and splits over 600 tokens between sentences with overlap; `meta.py` adds
   the plan 4.4 metadata; `lineage.py` checks every field, section, image and leftover is in a chunk; `summarise.py`
-  runs X12 and builds the embedding text; `tokens.py` counts with `cl100k_base`, bundled in `chunks/data/` (no
-  download). `model/embeddings.py` is the embedding interface with fake, cache and record/replay clients.
-- `search/`: Azure OpenAI embeddings and the Azure AI Search index (schema, delete-upload-count push), an optional
+  runs X12 and builds the embedding text; `tokens.py` counts with `cl100k_base`, bundled in `chunking/data/` (no
+  download). `embedding/embeddings.py` is the embedding interface with fake, cache and record/replay clients.
+- `embedding/search/`: Azure OpenAI embeddings and the Azure AI Search index (schema, delete-upload-count push), an optional
   package over the injectable HTTP transport. The core never imports it (a test enforces this).
 - `di/`: Document Intelligence track. The core package never imports it (a test enforces this).
 
@@ -225,37 +232,53 @@ Approval: a block is signed only when its signature cell has content (a date alo
 are not applicable; Form 3 is required only when a temporary speed limit is requested. The sample is
 `partially_signed` (designer and checker signed; activity manager, RCA primary and Form 3 not).
 
-## Retrieval: how a question is answered (Phase 6, plan part 5)
+## Retrieval: how a question is answered
 
-`retrieval/` is core (no optional imports). `Retriever.ask(question, session, user)`:
+Chunks first, then code tools the answer model may call. `retrieval/` has no pattern rules and no query rewriting: the
+model decides when a tool is needed. `Retriever.ask(question, session, user)`:
 
-1. **Resolve** (`resolve.py`): TMP reference by pattern (conflict aliases such as KTS 26-1580 resolve too), else
-   house number + road, road or suburb against the stored TMPs (`Ave` -> `Avenue` via `[facts.name_abbreviations]`),
-   else the session's TMP. Several matches -> ask back; a TMP the user can't read -> "isn't available to you".
-2. **Classify** (`classify.py`): the rule cues in `[retrieval.rules]`; Q1 only when no rule or several rules match,
-   or for a follow-up. Without a model, the rules' reading (or the previous turn's) is used; nothing -> baseline.
-3. **Recipes** (`recipes.py`): fixed tools per type, run in parallel. Tools (`tools.py`, `hybrid.py`, `calc.py`,
-   `timecheck.py`) return every value with status, raw text, unit, pages, a citation (form, section, page) and its
-   conflicts. `search_chunks` is BM25 + optional vectors, reciprocal rank fusion, site before generic, boilerplate
-   collapsed, detail boost, then expansion (parent table, linked sheet, siblings, form section, other side of a
-   conflict). `calculate` evaluates named stored values only (literal numbers are rejected) and shows the working;
-   which values to combine is data (`[retrieval.calculations]`). `time_check` uses the shift windows, TSL hours,
-   stage hours and works dates, with `data/nz_calendar.toml` (2026-27 terms and holidays; `calendar = ""` switches
-   it off and every window is returned with "not known").
-4. **Context** (`context.py`): facts, calculations, status, chunks, conflicts on the values used; budget in tokens,
-   chunks are cut first.
-5. **Answer** (`answer.py`): Q3 (role style from `[retrieval.role_styles]`), or without a model the code-built safe
-   answer from the same context.
-6. **Check** (`check.py`): numbers, times, dates, RPs and phones in the context; cited pages in the context; unverified
-   values called unconfirmed; conflicting values give their versions; generic or struck text labelled. One Q4 repair,
-   then the safe answer.
+1. **TMP**: the user picks the TMP from the list they may read (`store.docs(user)`; auth decides the list). The UI shows a
+   select box, the CLI takes `--tmp`. One readable TMP is used automatically; several and none chosen gives the ask-back
+   reply; a TMP the user may not read is "not available to you". (`session.py`)
+2. **Retrieve** (`search.py`): one hybrid search in that TMP's chunks: BM25 plus optional vectors, reciprocal rank
+   fusion, at most two general-standard chunks, boilerplate collapsed, then expansion (parent table, linked sheet,
+   neighbouring parts, form section, other side of a conflict). The query is the question plus the previous one.
+   Facts are not read at question time: they were used to build the chunks. The `doc_card` chunk (TMP reference and
+   spellings, dates, contacts, roads, approval) is an ordinary chunk: it is found by search like any other.
+3. **Context** (`context.py`): the TMP line and the chunks, best first; a token budget cuts chunks from the bottom.
+4. **Answer** (`answer.py`): Q3 (gpt-6-luna), with today's NZ date and time, the last turns and the role style from
+   `[retrieval.role_styles]`. Most questions are answered from the chunks in one call. When the question needs more, Q3
+   calls code tools (`tools.py`) and goes on with their results, at most `max_tool_rounds` (2) rounds and
+   `max_tool_calls` (6) calls: `calculate` (arithmetic over stored values, never a number of its own, shown with its
+   working), `time_check` (allowed or in force at a NZ date and time, from the shift windows, speed-limit hours, works
+   dates and the Auckland school-term and public-holiday calendar), `find_tmps`, `compare_versions`, `get_facts` and
+   `search_chunks` (another query, or another TMP). The results join the context (`TOOL RESULTS`), so the check below
+   accepts the numbers they computed. Without a model the code-built safe answer is used.
+   Worked figures that people ask for most (the speed-limit length from its RPs, the works extent on each road, the works
+   duration) are also computed in code when the chunks are built (`[chunks.derived]`), so those need no tool.
+   With several TMPs readable and none chosen, the model gets the list and the tools and either answers across them
+   or asks which TMP is meant.
+5. **Check** (`check.py`): numbers, times, dates, RPs and phones must be in the context; cited pages in the context;
+   generic or struck text labelled. Unconfirmed values and conflicting versions are written in the chunk text and the
+   prompt tells the model to say so; the check does not enforce it.
+   A number nothing in the context gives sends the question back to Q3 once, told to use `calculate` or `time_check`;
+   then one Q4 repair (gpt-6-sol), then the safe answer.
 
-Backends: `LocalStore` (run folders) and `LocalSearch` by default; `db/reader.py: PgFactsStore` reads the same facts
-from PostgreSQL and `search/query.py: AzureSearch` runs the candidate step in AI Search (both optional, same tools).
+```bash
+uv run tmp-pipeline-ask --out out --tmp "KTS 26-1581" --model live -v "Is the speed limit in force at 7am on a Saturday?"
+uv run tmp-pipeline-qa tests/data/gold/sample.questions.json --out out --model live
+uv run tmp-pipeline-ui --out out                       # pick a TMP in the Ask page
+```
 
-Question test set (`tests/data/gold/sample.questions.json`, draft, 46 questions over every row of plan 5.2): offline
-the deterministic measures (rule types, context holds the needed facts and pages, no number missing from the context,
-fixed responses) must be 100% and are; answer measures need `--model live` or `replay`.
+`-v` shows the chunks used, the context size, model calls, timing and the check. Backends: `LocalStore` and
+`LocalSearch` by default; `ingestion/embedding/db/reader.py: PgFactsStore` reads the same facts from PostgreSQL and
+`ingestion/embedding/search/query.py: AzureSearch` and `.../cosmos/store.py: CosmosSearch` run the candidate step in
+Azure AI Search or Cosmos DB (all optional).
+
+Question test set (`tests/data/gold/sample.questions.json`, draft, 41 questions): offline the deterministic measures
+(context holds the needed strings and pages, no number missing from the context) must be 100% and are. Questions
+whose wording is not in the chunk ("school day hours" for the shift times) have no offline context check: keyword
+search alone misses them and the vector backend finds them. Answer measures need `--model live` or `replay`.
 
 ## Azure resources and tracing
 
@@ -359,24 +382,19 @@ chunk alike) and a vector query (`VectorDistance`), and fuses the two rankings w
 expansion are shared with the local backend. Facts are still read from `out/<doc>/facts.json` (PostgreSQL per plan
 3.4 when hosted). The `cosmos` package is optional; core never imports it.
 
-A one-page picture of the whole answering flow (steps, tools, decisions, chunk selection and chunking, with real
-numbers) is in [docs/retrieval-flow.html](docs/retrieval-flow.html); open it in a browser.
-
-The synthetic set (`tmp-pipeline-synthetic out/sha256-... out_synth/`: a V1, a V2 and another TMP) is made by text
-replacement in a real run folder (each copy has a `SYNTHETIC` file). It tests retrieval across TMPs and versions, not
-extraction; keep it in `out_synth/`, never in `out/`. `tests/data/gold/sample.multistep.questions.json` holds 10 questions
-for it.
+The synthetic set (`uv run tmp-pipeline-synthetic out/sha256-... out_synth/`: V1, a V2 and another TMP, made by text
+replacement in a real run folder; each copy has a `SYNTHETIC` file) tests retrieval across several TMPs, not
+extraction; keep it in `out_synth/`, never in `out/`.
 
 ## Known gaps (Phase 6)
 
-- No live Q1/Q3/Q4 call has run: the plan 7.2 answer targets (answer correct >= 95%, page cited >= 95%, first words
-  p95 < 3 s) are measured only on the safe answers until `tmp-pipeline-qa --model live` runs with credentials.
+- The plan 7.2 answer targets (answer correct >= 95%, page cited >= 95%, first words p95 < 3 s) are measured live only
+  with `tmp-pipeline-qa --model live` and credentials; the offline gate covers the context and the number check.
 - The question set is a draft by the extractor's author; it needs a second keying, the client's 20-30 real questions
   and 2-3 more TMPs (ask-back on real data needs two TMPs on one road).
 - Q3 is not streamed; streaming belongs to the chat API (phase 8).
 - Contacts are not access-controlled separately (access-group naming is open, plan 8.2); row-level security policies
   are a phase 8 deployment step (the Postgres reader filters by access groups in every query).
-- The calendar covers 2026 to Term 3 2027; school-specific Term 1 starts and Term 4 ends are "not known".
 - Standards checks ("is a 30 m taper enough?") get the out-of-scope response with what the TMP says.
 
 ## Known gaps (Phase 5)
@@ -423,7 +441,8 @@ for it.
 
 ## Tests
 
+Tests live in `tests/ingestion/`, `tests/retrieval/` and (shared code) `tests/`; pytest puts the three on its path.
 `tests/helpers.py` has shared builders (`grid`, `header_footer`, `prepare`, and `sheet_page`, `speed_disc`, `plate`, `label`
 for synthetic diagram sheets); fixtures are in `conftest.py`.
-`tests/test_golden_sample.py` pins zones, element counts, routes and flags of the sample run: a refactor must
+`tests/ingestion/test_golden_sample.py` pins zones, element counts, routes and flags of the sample run: a refactor must
 not change them, and a deliberate change regenerates `tests/data/golden_sample_snapshot.json`.

@@ -16,8 +16,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from .models import SCHEMA_VERSION, Element, SchemaError, atomic_write_text
-from .vocab import Flag
+from .ingestion.models import SCHEMA_VERSION, Element, SchemaError, atomic_write_text
+from .ingestion.vocab import Flag
 
 log = logging.getLogger(__name__)
 

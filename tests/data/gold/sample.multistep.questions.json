@@ -3,31 +3,164 @@
  "status": "draft",
  "today": "2026-10-13T09:00:00+13:00",
  "notes": [
-  "Multi-step question set: questions that span several types, TMPs or versions. Run it on the SYNTHETIC set made from the sample: tmp-pipeline-synthetic out/sha256-... out_synth/, then tmp-pipeline-qa tests/data/gold/sample.multistep.questions.json --out out_synth.",
+  "Multi-step question set for the Level 2 planner (plan 5.9, Phase 7). Run it on the SYNTHETIC set made from the sample: tmp-pipeline-synthetic out/sha256-... out_synth/, then tmp-pipeline-qa tests/data/gold/sample.multistep.questions.json --out out_synth --planner (and --no-planner to compare).",
   "The synthetic set holds KTS 26-1581 V1 (the real sample), KTS 26-1581 V2 (end date 2026-11-11, temporary speed limit 40 km/h; made by text replacement) and KTS 26-1702 V1 (the sample moved to 12 Beach Road, Browns Bay). Questions are asked on V2, the latest version, unless session is null.",
-  "Keyed by their author from the stored facts, not by an independent reader; the multi-TMP questions only test retrieval, never extraction."
+  "Keyed by the planner's author from the stored facts, not by an independent reader; the multi-TMP questions only test retrieval and the planner, never extraction. The planner needs --model replay or live: with the model off every question stays Level 1."
  ],
  "questions": [
-  {"id": "m01", "row": "multi-part", "question": "Which stages run 24x7, and what are the weekend shift times?",
-   "types": ["fact"], "context": ["Parking Management", "Unattended Worksite", "24x7", "07:00", "18:00"],
-   "answer": ["Parking Management", "Unattended Worksite", "07:00", "18:00"], "pages": [3, 11]},
-  {"id": "m02", "row": "multi-part", "question": "Who designed the TMP, and have they signed it?",
-   "types": ["status"], "context": ["Dimple Manipon", "signed"], "answer": ["Dimple Manipon"], "pages": [16]},
-  {"id": "m03", "row": "multi-part", "question": "Is the temporary speed limit in force at 7am on a Saturday, and who do we call if the work runs late?",
-   "types": ["time_check", "procedure"], "context": ["time_check", "07:00"], "answer": ["40"], "pages": []},
-  {"id": "m04", "row": "multi-part", "question": "Who is the activity manager and have they signed the TMP?",
-   "types": ["status"], "context": ["Sam Parnell", "not signed"], "answer": ["Sam Parnell"], "pages": [16]},
-  {"id": "m05", "row": "versions", "question": "What changed between V1 and V2 of this TMP?",
-   "types": ["version_change"], "context": ["VERSIONS", "2026-11-11", "40"], "answer": ["2026-11-11", "40"], "pages": []},
-  {"id": "m06", "row": "versions", "question": "How many days longer does V2 run than V1?",
-   "types": ["version_change"], "context": ["2026-10-28", "2026-11-11"], "answer": ["14"], "pages": []},
-  {"id": "m07", "row": "versions", "question": "Did the temporary speed limit change in V2, and by how much?",
-   "types": ["version_change"], "context": ["30", "40"], "answer": ["30", "40", "10"], "pages": []},
-  {"id": "m08", "row": "many TMPs", "question": "Which TMPs are active in October 2026, and which of them are fully approved?",
-   "session": null, "types": ["across_tmps"], "context": ["KTS 26-1581", "KTS 26-1702"], "answer": ["KTS 26-1581", "KTS 26-1702"], "pages": []},
-  {"id": "m09", "row": "many TMPs", "question": "Which TMPs are there across all sites, and what is the temporary speed limit on each?",
-   "types": ["across_tmps"], "context": ["KTS 26-1702", "30", "40"], "answer": ["KTS 26-1702", "30", "40"], "pages": []},
-  {"id": "m10", "row": "many TMPs", "question": "Which TMPs are on Beach Road, and who is their contractor?",
-   "session": null, "types": ["across_tmps"], "context": ["KTS 26-1702", "Fulton Hogan"], "answer": ["KTS 26-1702", "Fulton Hogan"], "pages": []}
+  {
+   "id": "m01",
+   "row": "multi-part",
+   "question": "Which stages run 24x7, and what are the weekend shift times?",
+   "context": [
+    "Parking Management",
+    "Unattended Worksite",
+    "24x7",
+    "07:00",
+    "18:00"
+   ],
+   "answer": [
+    "Parking Management",
+    "Unattended Worksite",
+    "07:00",
+    "18:00"
+   ],
+   "pages": [
+    3,
+    11
+   ]
+  },
+  {
+   "id": "m02",
+   "row": "multi-part",
+   "question": "Who designed the TMP, and have they signed it?",
+   "context": [
+    "Dimple Manipon",
+    "signed"
+   ],
+   "answer": [
+    "Dimple Manipon"
+   ],
+   "pages": [
+    16
+   ]
+  },
+  {
+   "id": "m03",
+   "row": "multi-part",
+   "question": "Is the temporary speed limit in force at 7am on a Saturday, and who do we call if the work runs late?",
+   "context": [
+    "time_check",
+    "07:00"
+   ],
+   "answer": [
+    "40"
+   ],
+   "pages": []
+  },
+  {
+   "id": "m04",
+   "row": "multi-part",
+   "question": "Who is the activity manager and have they signed the TMP?",
+   "context": [
+    "Sam Parnell",
+    "not signed"
+   ],
+   "answer": [
+    "Sam Parnell"
+   ],
+   "pages": [
+    16
+   ]
+  },
+  {
+   "id": "m05",
+   "row": "versions",
+   "question": "What changed between V1 and V2 of this TMP?",
+   "context": [
+    "VERSIONS",
+    "2026-11-11",
+    "40"
+   ],
+   "answer": [
+    "2026-11-11",
+    "40"
+   ],
+   "pages": []
+  },
+  {
+   "id": "m06",
+   "row": "versions",
+   "question": "How many days longer does V2 run than V1?",
+   "context": [
+    "2026-10-28",
+    "2026-11-11"
+   ],
+   "answer": [
+    "14"
+   ],
+   "pages": []
+  },
+  {
+   "id": "m07",
+   "row": "versions",
+   "question": "Did the temporary speed limit change in V2, and by how much?",
+   "context": [
+    "30",
+    "40"
+   ],
+   "answer": [
+    "30",
+    "40",
+    "10"
+   ],
+   "pages": []
+  },
+  {
+   "id": "m08",
+   "row": "many TMPs",
+   "question": "Which TMPs are active in October 2026, and which of them are fully approved?",
+   "session": null,
+   "context": [
+    "KTS 26-1581",
+    "KTS 26-1702"
+   ],
+   "answer": [
+    "KTS 26-1581",
+    "KTS 26-1702"
+   ],
+   "pages": []
+  },
+  {
+   "id": "m09",
+   "row": "many TMPs",
+   "question": "Which TMPs are there across all sites, and what is the temporary speed limit on each?",
+   "context": [
+    "KTS 26-1702",
+    "30",
+    "40"
+   ],
+   "answer": [
+    "KTS 26-1702",
+    "30",
+    "40"
+   ],
+   "pages": []
+  },
+  {
+   "id": "m10",
+   "row": "many TMPs",
+   "question": "Which TMPs are on Beach Road, and who is their contractor?",
+   "session": null,
+   "context": [
+    "KTS 26-1702",
+    "Fulton Hogan"
+   ],
+   "answer": [
+    "KTS 26-1702",
+    "Fulton Hogan"
+   ],
+   "pages": []
+  }
  ]
 }

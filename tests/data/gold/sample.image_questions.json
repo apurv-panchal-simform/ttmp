@@ -12,10 +12,6 @@
    "row": "basic",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Describe the image in 3-5 sentences.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure",
     "35 m ("
@@ -33,10 +29,6 @@
    "row": "basic",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What type of drawing or plan is shown in the image?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -52,10 +44,6 @@
    "row": "basic",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What road name is visible in the diagram?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "\"SUNRISE AVENUE - L1\"",
     "\"GULL LANE - LV\""
@@ -73,10 +61,6 @@
    "row": "basic",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What types of traffic signs and road facilities are visible?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "warning sign \"SHOULDER CLOSED\"",
     "end of works sign \"WORKS END\""
@@ -95,10 +79,6 @@
    "row": "basic",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What is the apparent purpose of the temporary traffic management arrangement?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -114,10 +94,6 @@
    "row": "ocr",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Transcribe the bus-stop relocation notice exactly as far as legible.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Bus Stop near House No. 55 Sunrise Avenue will be closed"
    ],
@@ -134,10 +110,6 @@
    "row": "ocr",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which house numbers are mentioned in the notice?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "House No. 55",
     "House No. 33"
@@ -155,10 +127,6 @@
    "row": "ocr",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): List all visible distance measurements shown in the image.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "35 m (",
     "10 m (",
@@ -183,10 +151,6 @@
    "row": "ocr",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What text appears on the temporary traffic signs?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "TEMPORARY BUS STOP 250M AHEAD",
     "\"SHOULDER CLOSED\""
@@ -205,10 +169,6 @@
    "row": "ocr",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Extract all readable labels, annotations, road names, and measurements from the image.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "RP0.625",
     "#55",
@@ -232,10 +192,6 @@
    "row": "ocr",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which text or annotations are too small or unclear to read confidently?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "broken font"
    ],
@@ -249,10 +205,6 @@
    "row": "spatial",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Describe the arrangement of traffic signs and the bus-stop symbol from left to right.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "From left to right across the plan:"
    ],
@@ -269,10 +221,6 @@
    "row": "spatial",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Where are the temporary traffic signs positioned relative to the bus-stop symbol?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "pictogram: bus stop sign"
    ],
@@ -288,10 +236,6 @@
    "row": "spatial",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which side of the road contains the temporary bus-stop arrangement?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Layout of diagram TMD-02"
    ],
@@ -305,10 +249,6 @@
    "row": "spatial",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): How are the distance measurements distributed along the road?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "the line runs from the start of the Work Area"
    ],
@@ -325,10 +265,6 @@
    "row": "spatial",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Where is the bus-stop relocation notice positioned relative to the road?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "notice \"Bus Stop near House No. 55"
    ],
@@ -342,10 +278,6 @@
    "row": "spatial",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify the approximate positions of the major elements in the diagram.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "of the plan"
    ],
@@ -361,10 +293,6 @@
    "row": "domain",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What temporary traffic-management change is communicated by the plan?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -381,10 +309,6 @@
    "row": "domain",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Why might the existing bus stop need to be closed temporarily?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Bus Stop near House No. 55"
    ],
@@ -400,10 +324,6 @@
    "row": "domain",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Where does the notice indicate that passengers should use the temporary bus stop?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "temporary bus stop at House No. 33"
    ],
@@ -419,10 +339,6 @@
    "row": "domain",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What information should a traffic-management engineer verify before implementing this arrangement?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Notes:"
    ],
@@ -436,10 +352,6 @@
    "row": "domain",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What potential safety risks could arise if the temporary signs are positioned incorrectly?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "From left to right across the plan:"
    ],
@@ -453,10 +365,6 @@
    "row": "domain",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What additional information would be required to verify compliance with the applicable traffic-management standards?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -470,10 +378,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Summarize the proposed temporary traffic arrangement.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "35 m ("
    ],
@@ -491,10 +395,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Extract all visible distances and associate each measurement with its approximate location.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "35 m (top-centre of the plan)"
    ],
@@ -517,10 +417,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify the bus-stop closure and the alternative location mentioned in the notice.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "House No. 33"
    ],
@@ -537,10 +433,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Separate explicitly stated facts from assumptions or inferences.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -554,10 +446,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): What information cannot be reliably extracted from this image alone?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -571,10 +459,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify all references to the bus stop, road name, house numbers, measurements, and sign placements.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "#55",
     "35 m ("
@@ -595,10 +479,6 @@
    "row": "rag",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which annotations should an engineer review when verifying the temporary bus-stop arrangement?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "House No. 33"
    ],
@@ -614,10 +494,6 @@
    "row": "structured",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Return the extracted information as structured JSON with fields for road_name, bus_stop_notice, house_numbers, traffic_signs, distance_measurements, and other_annotations.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "35 m ("
    ],
@@ -646,10 +522,6 @@
    "row": "structured",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): For each extracted measurement, provide its value, unit if visible, and approximate location in the image.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "35 m (top-centre of the plan)"
    ],
@@ -672,10 +544,6 @@
    "row": "structured",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): For each identified traffic sign, describe its visible appearance and approximate location. Do not guess its official meaning if the symbol is unclear.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "warning sign \"SHOULDER CLOSED\""
    ],
@@ -692,10 +560,6 @@
    "row": "structured",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Which answers can be supported directly by visible evidence in the image?",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "Shoulder Closure"
    ],
@@ -709,10 +573,6 @@
    "row": "structured",
    "sheet": "TMD-02",
    "question": "On TMD-02 (the Shoulder Closure diagram, page 21): Identify any unreadable, ambiguous, or missing information. Do not invent values or descriptions.",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "context": [
     "broken font"
    ],
@@ -736,10 +596,6 @@
     "16/09/2026"
    ],
    "sheet": "TMD-01",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     20
    ]
@@ -757,10 +613,6 @@
     "\"No"
    ],
    "sheet": "TMD-01",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     20
    ]
@@ -778,10 +630,6 @@
     "33"
    ],
    "sheet": "TMD-01",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     20
    ]
@@ -797,10 +645,6 @@
     "33"
    ],
    "sheet": "TMD-01",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     20
    ]
@@ -820,10 +664,6 @@
     "35 m"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -839,10 +679,6 @@
     "35"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -862,10 +698,6 @@
     "16/09/2026"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -886,10 +718,6 @@
     "Temporary Pram Ramp"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -907,10 +735,6 @@
     "1M"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -928,10 +752,6 @@
     "33"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -947,10 +767,6 @@
     "SHOULDER CLOSED"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -966,10 +782,6 @@
     "33"
    ],
    "sheet": "TMD-02",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     21
    ]
@@ -995,10 +807,6 @@
     "40 m"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1014,10 +822,6 @@
     "10"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1033,10 +837,6 @@
     "35"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1052,10 +852,6 @@
     "15"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1075,10 +871,6 @@
     "16/09/2026"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1099,10 +891,6 @@
     "Temporary Pram Ramp"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1120,10 +908,6 @@
     "1M"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1141,10 +925,6 @@
     "33"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1160,10 +940,6 @@
     "SCHOOL ZONE"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1179,10 +955,6 @@
     "33"
    ],
    "sheet": "TMD-03",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     22
    ]
@@ -1208,10 +980,6 @@
     "40 m"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1227,10 +995,6 @@
     "10"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1246,10 +1010,6 @@
     "35"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1269,10 +1029,6 @@
     "16/09/2026"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1293,10 +1049,6 @@
     "Temporary Pram Ramp"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1314,10 +1066,6 @@
     "1M"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1335,10 +1083,6 @@
     "33"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1354,10 +1098,6 @@
     "SCHOOL ZONE"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1373,10 +1113,6 @@
     "33"
    ],
    "sheet": "TMD-04",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     23
    ]
@@ -1396,10 +1132,6 @@
     "16/09/2026"
    ],
    "sheet": "TMD-05",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     24
    ]
@@ -1415,10 +1147,6 @@
     "Unattended Work Area"
    ],
    "sheet": "TMD-05",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     24
    ]
@@ -1436,10 +1164,6 @@
     "When"
    ],
    "sheet": "TMD-05",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     24
    ]
@@ -1455,10 +1179,6 @@
     "55"
    ],
    "sheet": "TMD-05",
-   "types": [
-    "diagram"
-   ],
-   "rules": true,
    "pages": [
     24
    ]

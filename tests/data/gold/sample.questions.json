@@ -4,104 +4,632 @@
  "today": "2026-10-13T09:00:00+13:00",
  "notes": [
   "Draft retrieval question test set (plan 7.2) for the sample TMP, keyed by the extractor's author from the PDF and plan 5.2 / 5.11. It needs an independent second keying, the client's 20-30 real questions, and 2-3 other TMPs (ask-back needs two TMPs on one road).",
-  "Fields: types = expected question types (each must be in the reading); rules = the rules alone must read it (no model); context = strings the assembled context must hold (checked offline); answer = strings a correct answer contains; pages = pages a correct answer cites (at least one); flags: conflict (answer gives every version in conflict_values), unconfirmed, not_in_tmp, ask_back, no_match, no_tmp; turns = earlier questions in the same session.",
-  "Risk matrix: the printed matrix gives Likely (4) x High (4) = 16 High; plan 5.2 says Very High (red). The extracted value is used here (open item from Phase 3)."
+  "Risk matrix: the printed matrix gives Likely (4) x High (4) = 16 High; plan 5.2 says Very High (red). The extracted value is used here (open item from Phase 3).",
+  "Fields: context = strings the assembled context (the TMP facts and the retrieved chunks) must hold, checked offline; answer = strings a correct answer contains (meaningful with a model); pages = pages a correct answer cites (at least one); flags: conflict (answer gives every version in conflict_values), unconfirmed, not_in_tmp, ask_back; turns = earlier questions in the same session. Questions about all TMPs, version changes and unknown TMPs are not asked: the user chooses the TMP.",
+  "Questions whose wording is not in the chunk (\"school day hours\" for the shift times, \"bus route\" for the ticked road users) have no offline context check: keyword search alone misses them and the vector backend finds them. Run them with the model and an embedder."
  ],
  "questions": [
-  {"id": "q01", "row": "identity", "question": "Who is the client?", "types": ["fact"], "rules": true,
-   "context": ["James Lu", "021 733 454", "Client (Contracting PCBU)"], "answer": ["James Lu", "021 733 454"], "pages": [1]},
-  {"id": "q02", "row": "identity", "question": "What's the TMP number?", "types": ["fact"], "rules": true,
-   "context": ["KTS 26-1581", "KTS 26-1580"], "answer": ["KTS 26-1581", "KTS 26-1580"], "pages": [1],
-   "flags": ["conflict"], "conflict_values": ["KTS 26-1581", "KTS 26-1580"]},
-  {"id": "q03", "row": "identity", "question": "What is the order reference?", "types": ["fact"], "rules": true,
-   "context": ["DOM-354922"], "answer": ["DOM-354922"], "pages": [1]},
-  {"id": "q04", "row": "identity", "question": "Who is the activity manager and what is their phone number?", "types": ["fact"], "rules": true,
-   "context": ["Sam Parnell", "027 266 6785"], "answer": ["Sam Parnell", "027 266 6785"], "pages": [16]},
-  {"id": "q05", "row": "identity", "question": "What are the start and end dates of the works?", "types": ["fact"], "rules": true,
-   "context": ["2026-09-28", "2026-10-28"], "answer": ["2026-09-28", "2026-10-28"], "pages": [4]},
-  {"id": "q06", "row": "roads", "question": "Posted speed on Gull Lane?", "types": ["fact"], "rules": true,
-   "context": ["Gull Lane", "posted_speed_kmh 50"], "answer": ["50"], "pages": [4, 18]},
-  {"id": "q07", "row": "roads", "question": "What is the AADT on Sunrise Avenue?", "types": ["fact"], "rules": true,
-   "context": ["aadt 9260"], "answer": ["9260"], "pages": [4]},
-  {"id": "q08", "row": "roads", "question": "What is the ONRC class of Sunrise Avenue?", "types": ["fact"], "rules": true,
-   "context": ["Primary Collector"], "answer": ["Primary Collector"], "pages": [4]},
-  {"id": "q09", "row": "roads", "question": "What percentage of heavy vehicles (HMV) use Gull Lane?", "types": ["fact"], "rules": true,
-   "context": ["5.409"], "answer": ["5.409"], "pages": [4]},
-  {"id": "q10", "row": "shift windows", "question": "When must the site be cleared in school holidays?", "types": ["fact"], "rules": true,
-   "context": ["site_cleared 17:00"], "answer": ["17:00"], "pages": [3, 11]},
-  {"id": "q11", "row": "shift windows", "question": "What are the school day hours?", "types": ["fact"], "rules": true,
-   "context": ["first_sign_in 09:00", "site_cleared 15:00"], "answer": ["09:00", "15:00"], "pages": [3, 11]},
-  {"id": "q12", "row": "shift windows", "question": "and weekends?", "turns": ["What are the school day hours?"], "types": ["fact"], "rules": false,
-   "context": ["site_cleared 18:00"], "answer": ["07:00", "18:00"], "pages": [3, 11]},
-  {"id": "q13", "row": "time windows", "question": "Can we work at 4 pm on a school day?", "types": ["time_check"], "rules": true,
-   "context": ["allowed=no", "16:00 is after the 15:00 site-cleared time"], "answer": ["15:00"], "pages": [3]},
-  {"id": "q14", "row": "time windows", "question": "Can the crew work at 16:00 on Wednesday?", "types": ["time_check"], "rules": true,
-   "context": ["2026-10-14", "allowed=no"], "answer": ["15:00"], "pages": [3]},
-  {"id": "q15", "row": "time windows", "question": "Can we work at 4pm on Saturday 3 October?", "types": ["time_check"], "rules": true,
-   "context": ["2026-10-03", "allowed=yes", "weekends"], "answer": ["18:00"], "pages": [3]},
-  {"id": "q16", "row": "time windows", "question": "Can we work at 9am on 5 November 2026?", "types": ["time_check"], "rules": true,
-   "context": ["outside the works dates"], "answer": ["2026-10-28"], "pages": [4]},
-  {"id": "q17", "row": "temporary speed limit", "question": "How long is the 30 km/h zone?", "types": ["calculation"], "rules": true,
-   "context": ["0.615 km − 0.465 km = 0.150 km = 150 m", "matches the stated 150 m"], "answer": ["150 m", "0.465", "0.615"], "pages": [18]},
-  {"id": "q18", "row": "temporary speed limit", "question": "Is the temporary speed limit allowed (in force) at 5 pm on a school day?", "types": ["time_check"], "rules": true,
-   "context": ["allowed=no", "TSL"], "answer": ["15:00"], "pages": [18]},
-  {"id": "q19", "row": "temporary speed limit", "question": "What are the temporary speed limit hours on weekends?", "types": ["fact"], "rules": true,
-   "context": ["07:00", "18:00"], "answer": ["07:00", "18:00"], "pages": [18]},
-  {"id": "q20", "row": "calculation", "question": "How long is the works area on Sunrise Avenue between its start and end RP?", "types": ["calculation"], "rules": true,
-   "context": ["0.68 km − 0.41 km = 0.27 km = 270 m"], "answer": ["270 m"], "pages": [4]},
-  {"id": "q21", "row": "stages", "question": "Which diagram is used for Stop/Go?", "types": ["diagram"], "rules": true,
-   "context": ["TMD-04", "STOP GO", "C-003"], "answer": ["TMD-04"], "pages": [23]},
-  {"id": "q22", "row": "stages", "question": "Which diagram is TMD4?", "types": ["diagram"], "rules": true,
-   "context": ["TMD-04", "TMD4: Parking Management", "TMD4: Unattended Worksite"], "answer": ["TMD-04", "Stop Go"], "pages": [23],
-   "flags": ["conflict"], "conflict_values": ["Parking Management", "Unattended Worksite"]},
-  {"id": "q23", "row": "stages", "question": "What are the work stages and their hours?", "types": ["fact"], "rules": true,
-   "context": ["Parking Management", "24x7 hrs", "Dayshift"], "answer": ["Parking Management", "Shoulder Closure", "Lane Diversion", "Unattended Worksite"], "pages": [3, 10]},
-  {"id": "q24", "row": "checkboxes", "question": "Is it a bus route?", "types": ["fact"], "rules": true,
-   "context": ["bus_route ticked", "House No. 33"], "answer": ["33"], "pages": [5]},
-  {"id": "q25", "row": "checkboxes", "question": "Are pedestrians present?", "types": ["fact"], "rules": true,
-   "context": ["pedestrians ticked"], "answer": ["ticked"], "pages": [5]},
-  {"id": "q26", "row": "checkboxes", "question": "Is there a rail corridor?", "types": ["fact"], "rules": true,
-   "context": ["rail_corridor not ticked"], "answer": ["not ticked"], "pages": [5]},
-  {"id": "q27", "row": "risk matrix", "question": "What rating is Likely × High in the risk matrix?", "types": ["fact"], "rules": true,
-   "context": ["4: 16 High"], "answer": ["16"], "pages": [5]},
-  {"id": "q28", "row": "risk register", "question": "What is the residual risk for the work area hazard?", "types": ["fact"], "rules": true,
-   "context": ["residual_risk Medium"], "answer": ["Medium"], "pages": [6]},
-  {"id": "q29", "row": "contingency", "question": "What if delays exceed 5 minutes?", "types": ["procedure"], "rules": true,
-   "context": ["cease works and remove any visual impacts"], "answer": ["cease works"], "pages": [12]},
-  {"id": "q30", "row": "contingency", "question": "What happens if there's a spill?", "types": ["procedure"], "rules": true,
-   "context": ["0800 USPILL"], "answer": ["0800 USPILL"], "pages": [12]},
-  {"id": "q31", "row": "contacts", "question": "Who do we call if work runs late?", "types": ["procedure"], "rules": true,
-   "context": ["0800 630 7200", "0800 JAMMED"], "answer": ["0800 630 7200", "0800 JAMMED"], "pages": [12]},
-  {"id": "q32", "row": "diagram", "question": "What's the taper length on the Stop/Go layout?", "types": ["diagram"], "rules": true,
-   "context": ["30M taper length", "2.5M spacings"], "answer": ["30"], "pages": [23]},
-  {"id": "q33", "row": "diagram", "question": "Which signs are on the Lane Diversion diagram?", "types": ["diagram"], "rules": true,
-   "context": ["TMD-03", "Sign schedule"], "answer": ["TMD-03"], "pages": [22]},
-  {"id": "q34", "row": "site plan", "question": "Which meter is being relocated?", "types": ["fact"], "rules": true,
-   "context": ["figure"], "answer": [], "pages": [1], "flags": ["unconfirmed"],
-   "note": "the site-plan label LG2509427B is picture text: it needs DI or X7, so offline the figure is unverified"},
-  {"id": "q35", "row": "sign-offs", "question": "Is this TMP approved?", "types": ["status"], "rules": true,
-   "context": ["approval: partially_signed", "not signed: activity_manager"], "answer": ["partially", "Dimple Manipon", "Satvir Singh"], "pages": [16, 19]},
-  {"id": "q36", "row": "sign-offs", "question": "Who signed the TMP?", "types": ["status"], "rules": true,
-   "context": ["signed: ttm_designer"], "answer": ["Dimple Manipon", "Satvir Singh"], "pages": [16]},
-  {"id": "q37", "row": "conflicts", "question": "Are there any conflicts or errors in this TMP?", "types": ["status"], "rules": true,
-   "context": ["C-001", "C-002", "C-003", "C-004"], "answer": ["C-001", "C-004"], "pages": [1, 23]},
-  {"id": "q38", "row": "struck through", "question": "Does another network's RCA need to sign?", "types": ["status"], "rules": true,
-   "context": ["struck through (not applicable): rca_other"], "answer": ["not applicable"], "pages": [16]},
-  {"id": "q39", "row": "generic standard", "question": "In general, what does the standard say about a vehicle in lane?", "types": ["general_rule"], "rules": true,
-   "context": ["VEHICLE IN LANE", "scope: generic"], "answer": ["general standard"], "pages": [25]},
-  {"id": "q40", "row": "out of scope", "question": "Is a 30 m taper enough for a 50 km/h road?", "types": ["out_of_scope"], "rules": false,
-   "context": [], "answer": ["standard"], "pages": []},
-  {"id": "q41", "row": "summary", "question": "Give me a toolbox summary of this TMP", "types": ["summary"], "rules": true,
-   "context": ["KTS 26-1581", "approval: partially_signed"], "answer": ["KTS 26-1581"], "pages": [1]},
-  {"id": "q42", "row": "many TMPs", "question": "Which TMPs on Sunrise Ave are active next week?", "session": null, "types": ["across_tmps"], "rules": true,
-   "context": ["KTS 26-1581"], "answer": ["KTS 26-1581"], "pages": []},
-  {"id": "q43", "row": "versions", "question": "What changed in V2?", "types": ["version_change"], "rules": true,
-   "context": ["only one version"], "answer": [], "pages": []},
-  {"id": "q44", "row": "resolve", "question": "Is KTS 99-9999 approved?", "session": null, "types": [], "rules": true,
-   "context": [], "answer": ["couldn't find"], "pages": [], "flags": ["no_match"]},
-  {"id": "q45", "row": "resolve", "question": "What are the hours for KTS 26-1580?", "session": null, "types": ["fact"], "rules": true,
-   "context": ["KTS 26-1581"], "answer": [], "pages": [3]},
-  {"id": "q46", "row": "resolve", "question": "Is it approved?", "session": null, "types": ["status"], "rules": true,
-   "context": [], "answer": ["Which TMP"], "pages": [], "flags": ["no_tmp"]}
+  {
+   "id": "q01",
+   "row": "identity",
+   "question": "Who is the client?",
+   "context": [
+    "James Lu",
+    "021 733 454",
+    "Client (Contracting PCBU)"
+   ],
+   "answer": [
+    "James Lu",
+    "021 733 454"
+   ],
+   "pages": [
+    1
+   ]
+  },
+  {
+   "id": "q02",
+   "row": "identity",
+   "question": "What's the TMP number?",
+   "context": [
+    "KTS 26-1581",
+    "KTS 26-1580"
+   ],
+   "answer": [
+    "KTS 26-1581",
+    "KTS 26-1580"
+   ],
+   "pages": [
+    1
+   ],
+   "flags": [
+    "conflict"
+   ],
+   "conflict_values": [
+    "KTS 26-1581",
+    "KTS 26-1580"
+   ]
+  },
+  {
+   "id": "q03",
+   "row": "identity",
+   "question": "What is the order reference?",
+   "context": [
+    "DOM-354922"
+   ],
+   "answer": [
+    "DOM-354922"
+   ],
+   "pages": [
+    1
+   ]
+  },
+  {
+   "id": "q04",
+   "row": "identity",
+   "question": "Who is the activity manager and what is their phone number?",
+   "context": [
+    "Sam Parnell",
+    "027 266 6785"
+   ],
+   "answer": [
+    "Sam Parnell",
+    "027 266 6785"
+   ],
+   "pages": [
+    16
+   ]
+  },
+  {
+   "id": "q05",
+   "row": "identity",
+   "question": "What are the start and end dates of the works?",
+   "context": [
+    "2026-09-28",
+    "2026-10-28"
+   ],
+   "answer": [
+    "2026-09-28",
+    "2026-10-28"
+   ],
+   "pages": [
+    4
+   ]
+  },
+  {
+   "id": "q06",
+   "row": "roads",
+   "question": "Posted speed on Gull Lane?",
+   "context": [
+    "Gull Lane",
+    "Posted speed (km/h): 50 km/h"
+   ],
+   "answer": [
+    "50"
+   ],
+   "pages": [
+    4,
+    18
+   ]
+  },
+  {
+   "id": "q07",
+   "row": "roads",
+   "question": "What is the AADT on Sunrise Avenue?",
+   "context": [
+    "AADT: 9260"
+   ],
+   "answer": [
+    "9260"
+   ],
+   "pages": [
+    4
+   ]
+  },
+  {
+   "id": "q08",
+   "row": "roads",
+   "question": "What is the ONRC class of Sunrise Avenue?",
+   "context": [
+    "Primary Collector"
+   ],
+   "answer": [
+    "Primary Collector"
+   ],
+   "pages": [
+    4
+   ]
+  },
+  {
+   "id": "q09",
+   "row": "roads",
+   "question": "What percentage of heavy vehicles (HMV) use Gull Lane?",
+   "context": [
+    "5.409"
+   ],
+   "answer": [
+    "5.409"
+   ],
+   "pages": [
+    4
+   ]
+  },
+  {
+   "id": "q10",
+   "row": "shift windows",
+   "question": "When must the site be cleared in school holidays?",
+   "context": [
+    "Site cleared: 17:00"
+   ],
+   "answer": [
+    "17:00"
+   ],
+   "pages": [
+    3,
+    11
+   ]
+  },
+  {
+   "id": "q11",
+   "row": "shift windows",
+   "question": "What are the school day hours?",
+   "context": [],
+   "answer": [
+    "09:00",
+    "15:00"
+   ],
+   "pages": [
+    3,
+    11
+   ]
+  },
+  {
+   "id": "q12",
+   "row": "shift windows",
+   "question": "and weekends?",
+   "turns": [
+    "What are the school day hours?"
+   ],
+   "context": [],
+   "answer": [
+    "07:00",
+    "18:00"
+   ],
+   "pages": [
+    3,
+    11
+   ]
+  },
+  {
+   "id": "q13",
+   "row": "time windows",
+   "question": "Can we work at 4 pm on a school day?",
+   "context": [],
+   "answer": [
+    "15:00"
+   ],
+   "pages": [
+    3
+   ]
+  },
+  {
+   "id": "q14",
+   "row": "time windows",
+   "question": "Can the crew work at 16:00 on Wednesday?",
+   "context": [],
+   "answer": [
+    "15:00"
+   ],
+   "pages": [
+    3
+   ]
+  },
+  {
+   "id": "q15",
+   "row": "time windows",
+   "question": "Can we work at 4pm on Saturday 3 October?",
+   "context": [],
+   "answer": [
+    "18:00"
+   ],
+   "pages": [
+    3
+   ]
+  },
+  {
+   "id": "q16",
+   "row": "time windows",
+   "question": "Can we work at 9am on 5 November 2026?",
+   "context": [
+    "2026-10-28"
+   ],
+   "answer": [
+    "2026-10-28"
+   ],
+   "pages": [
+    4
+   ]
+  },
+  {
+   "id": "q17",
+   "row": "temporary speed limit",
+   "question": "How long is the 30 km/h zone?",
+   "context": [
+    "RP 0.465",
+    "RP 0.615"
+   ],
+   "answer": [
+    "150 m",
+    "0.465",
+    "0.615"
+   ],
+   "pages": [
+    18
+   ]
+  },
+  {
+   "id": "q18",
+   "row": "temporary speed limit",
+   "question": "Is the temporary speed limit allowed (in force) at 5 pm on a school day?",
+   "context": [
+    "Hours (school days): 09:00–15:00"
+   ],
+   "answer": [
+    "15:00"
+   ],
+   "pages": [
+    18
+   ]
+  },
+  {
+   "id": "q19",
+   "row": "temporary speed limit",
+   "question": "What are the temporary speed limit hours on weekends?",
+   "context": [
+    "07:00",
+    "18:00"
+   ],
+   "answer": [
+    "07:00",
+    "18:00"
+   ],
+   "pages": [
+    18
+   ]
+  },
+  {
+   "id": "q20",
+   "row": "calculation",
+   "question": "How long is the works area on Sunrise Avenue between its start and end RP?",
+   "context": [
+    "Start RP: 0.41",
+    "End RP: 0.68"
+   ],
+   "answer": [
+    "0.41",
+    "0.68"
+   ],
+   "pages": [
+    4
+   ]
+  },
+  {
+   "id": "q21",
+   "row": "stages",
+   "question": "Which diagram is used for Stop/Go?",
+   "context": [
+    "TMD-04",
+    "STOP GO",
+    "C-003"
+   ],
+   "answer": [
+    "TMD-04"
+   ],
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "q22",
+   "row": "stages",
+   "question": "Which diagram is TMD4?",
+   "context": [
+    "TMD-04",
+    "TMD4: Parking Management",
+    "TMD4: Unattended Worksite"
+   ],
+   "answer": [
+    "TMD-04",
+    "Stop Go"
+   ],
+   "pages": [
+    23
+   ],
+   "flags": [
+    "conflict"
+   ],
+   "conflict_values": [
+    "Parking Management",
+    "Unattended Worksite"
+   ]
+  },
+  {
+   "id": "q23",
+   "row": "stages",
+   "question": "What are the work stages and their hours?",
+   "context": [
+    "Parking Management",
+    "24x7 hrs",
+    "Dayshift"
+   ],
+   "answer": [
+    "Parking Management",
+    "Shoulder Closure",
+    "Lane Diversion",
+    "Unattended Worksite"
+   ],
+   "pages": [
+    3,
+    10
+   ]
+  },
+  {
+   "id": "q24",
+   "row": "checkboxes",
+   "question": "Is it a bus route?",
+   "context": [],
+   "answer": [
+    "33"
+   ],
+   "pages": [
+    5
+   ]
+  },
+  {
+   "id": "q25",
+   "row": "checkboxes",
+   "question": "Are pedestrians present?",
+   "context": [
+    "Pedestrians:: ticked"
+   ],
+   "answer": [
+    "ticked"
+   ],
+   "pages": [
+    5
+   ]
+  },
+  {
+   "id": "q26",
+   "row": "checkboxes",
+   "question": "Is there a rail corridor?",
+   "context": [
+    "Rail corridor: not ticked"
+   ],
+   "answer": [
+    "not ticked"
+   ],
+   "pages": [
+    5
+   ]
+  },
+  {
+   "id": "q27",
+   "row": "risk matrix",
+   "question": "What rating is Likely × High in the risk matrix?",
+   "context": [
+    "4: 16 High"
+   ],
+   "answer": [
+    "16"
+   ],
+   "pages": [
+    5
+   ]
+  },
+  {
+   "id": "q28",
+   "row": "risk register",
+   "question": "What is the residual risk for the work area hazard?",
+   "context": [
+    "Residual risk: Medium"
+   ],
+   "answer": [
+    "Medium"
+   ],
+   "pages": [
+    6
+   ]
+  },
+  {
+   "id": "q29",
+   "row": "contingency",
+   "question": "What if delays exceed 5 minutes?",
+   "context": [
+    "cease works and remove any visual impacts"
+   ],
+   "answer": [
+    "cease works"
+   ],
+   "pages": [
+    12
+   ]
+  },
+  {
+   "id": "q30",
+   "row": "contingency",
+   "question": "What happens if there's a spill?",
+   "context": [
+    "0800 USPILL"
+   ],
+   "answer": [
+    "0800 USPILL"
+   ],
+   "pages": [
+    12
+   ]
+  },
+  {
+   "id": "q31",
+   "row": "contacts",
+   "question": "Who do we call if work runs late?",
+   "context": [
+    "0800 630 7200",
+    "0800 JAMMED"
+   ],
+   "answer": [
+    "0800 630 7200",
+    "0800 JAMMED"
+   ],
+   "pages": [
+    12
+   ]
+  },
+  {
+   "id": "q32",
+   "row": "diagram",
+   "question": "What's the taper length on the Stop/Go layout?",
+   "context": [
+    "30M taper length",
+    "2.5M spacings"
+   ],
+   "answer": [
+    "30"
+   ],
+   "pages": [
+    23
+   ]
+  },
+  {
+   "id": "q33",
+   "row": "diagram",
+   "question": "Which signs are on the Lane Diversion diagram?",
+   "context": [
+    "TMD-03",
+    "Sign schedule"
+   ],
+   "answer": [
+    "TMD-03"
+   ],
+   "pages": [
+    22
+   ]
+  },
+  {
+   "id": "q34",
+   "row": "site plan",
+   "question": "Which meter is being relocated?",
+   "context": [],
+   "answer": [],
+   "pages": [
+    1
+   ],
+   "flags": [
+    "unconfirmed"
+   ],
+   "note": "the site-plan label LG2509427B is picture text: it needs DI or X7, so offline the figure is unverified"
+  },
+  {
+   "id": "q35",
+   "row": "sign-offs",
+   "question": "Is this TMP approved?",
+   "context": [
+    "approval: partially_signed"
+   ],
+   "answer": [
+    "partially",
+    "Dimple Manipon",
+    "Satvir Singh"
+   ],
+   "pages": [
+    16,
+    19
+   ]
+  },
+  {
+   "id": "q36",
+   "row": "sign-offs",
+   "question": "Who signed the TMP?",
+   "context": [
+    "Sign-off: TTM designer"
+   ],
+   "answer": [
+    "Dimple Manipon",
+    "Satvir Singh"
+   ],
+   "pages": [
+    16
+   ]
+  },
+  {
+   "id": "q37",
+   "row": "conflicts",
+   "question": "Are there any conflicts or errors in this TMP?",
+   "context": [
+    "C-001",
+    "C-002",
+    "C-003",
+    "C-004"
+   ],
+   "answer": [
+    "C-001",
+    "C-004"
+   ],
+   "pages": [
+    1,
+    23
+   ]
+  },
+  {
+   "id": "q38",
+   "row": "struck through",
+   "question": "Does another network's RCA need to sign?",
+   "context": [
+    "Sign-off: RCA review, other network"
+   ],
+   "answer": [
+    "not applicable"
+   ],
+   "pages": [
+    16
+   ]
+  },
+  {
+   "id": "q39",
+   "row": "generic standard",
+   "question": "In general, what does the standard say about a vehicle in lane?",
+   "context": [
+    "VEHICLE IN LANE",
+    "scope: generic"
+   ],
+   "answer": [
+    "general standard"
+   ],
+   "pages": [
+    25
+   ]
+  },
+  {
+   "id": "q40",
+   "row": "out of scope",
+   "question": "Is a 30 m taper enough for a 50 km/h road?",
+   "context": [],
+   "answer": [
+    "standard"
+   ],
+   "pages": []
+  },
+  {
+   "id": "q45",
+   "row": "resolve",
+   "question": "What are the hours for KTS 26-1580?",
+   "session": null,
+   "context": [
+    "KTS 26-1581"
+   ],
+   "answer": [],
+   "pages": [
+    3
+   ]
+  }
  ]
 }
